@@ -56,20 +56,20 @@ func configRead(path string) (*Config, error) {
 		return nil, err
 	}
 
-	//privatePEM, err := os.ReadFile(cfg.PrivateKeyPath)
-	//if err != nil {
-	//	log.Fatal("Failed to read private key:", err)
-	//}
+	privatePEM, err := os.ReadFile(cfg.PrivateKeyPath)
+	if err != nil {
+		log.Fatal("Failed to read private key:", err)
+	}
 
-	//publicPEM, err := os.ReadFile(cfg.PublicKeyPath)
-	//if err != nil {
-	//	log.Fatal("Failed to read public key:", err)
-	//}
+	publicPEM, err := os.ReadFile(cfg.PublicKeyPath)
+	if err != nil {
+		log.Fatal("Failed to read public key:", err)
+	}
 
-	//cfg.PrivateKey, cfg.PublicKey, err = loadKeys(string(privatePEM), string(publicPEM))
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
+	cfg.PrivateKey, cfg.PublicKey, err = loadKeys(string(privatePEM), string(publicPEM))
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	return &cfg, nil
 }

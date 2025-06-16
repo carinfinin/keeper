@@ -15,8 +15,7 @@ var ErrBalanceLow = errors.New("there are insufficient funds in the account")
 var ErrUserNotFound = errors.New("user if not found")
 
 type Repository interface {
-	User(ctx context.Context, login string) (*models.User, error)
-	SaveUser(ctx context.Context, login string, passHash []byte, salt string) (int64, error)
-	SaveToken(ctx context.Context, userID int64, token string) error
+	Login(ctx context.Context, u *models.User) (*models.AuthResponse, error)
+	Register(ctx context.Context, u *models.User) (*models.AuthResponse, error)
 	Close(ctx context.Context) error
 }

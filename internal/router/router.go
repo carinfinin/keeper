@@ -48,7 +48,7 @@ func (r *Router) Register(writer http.ResponseWriter, request *http.Request) {
 	reader := json.NewDecoder(request.Body)
 	err := reader.Decode(&u)
 	if err != nil {
-		logger.Log.Error("Register error: ", err)
+		logger.Log.Error("Register decoder error: ", err)
 		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -56,19 +56,21 @@ func (r *Router) Register(writer http.ResponseWriter, request *http.Request) {
 
 	response, err := r.service.Register(request.Context(), &u)
 	if err != nil {
-		logger.Log.Error("Register error: ", err)
+		logger.Log.Error("service Register error: ", err)
 		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	encoder := json.NewEncoder(writer)
+	writer.Header().Set("Content-Type", "application/json")
+	writer.WriteHeader(http.StatusOK)
+
 	err = encoder.Encode(response)
 	if err != nil {
-		logger.Log.Error("Register error: ", err)
+		logger.Log.Error("Register Encoder error: ", err)
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	writer.WriteHeader(http.StatusCreated)
 }
 
 func (r *Router) Login(writer http.ResponseWriter, request *http.Request) {
@@ -91,13 +93,15 @@ func (r *Router) Login(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	encoder := json.NewEncoder(writer)
+	writer.Header().Set("Content-Type", "application/json")
+	writer.WriteHeader(http.StatusOK)
+
 	err = encoder.Encode(response)
 	if err != nil {
 		logger.Log.Error("Login error: ", err)
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	writer.WriteHeader(http.StatusOK)
 }
 
 func (r *Router) Refresh(writer http.ResponseWriter, request *http.Request) {
