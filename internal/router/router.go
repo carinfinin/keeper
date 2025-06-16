@@ -1,14 +1,20 @@
 package router
 
 import (
-	"fmt"
+	"context"
+	"encoding/json"
 	"github.com/carinfinin/keeper/internal/config"
+	"github.com/carinfinin/keeper/internal/logger"
 	"github.com/carinfinin/keeper/internal/store/models"
 	"github.com/go-chi/chi"
+	"io"
 	"net/http"
 )
 
 type ServiceInterface interface {
+	Register(ctx context.Context, u *models.User) (*models.AuthResponse, error)
+	Login(ctx context.Context, u *models.User) (*models.AuthResponse, error)
+	Refresh(ctx context.Context, token string) (*models.AuthResponse, error)
 }
 
 type Router struct {
@@ -30,6 +36,7 @@ func (r *Router) Configure() {
 	r.Handler.Route("/api", func(cr chi.Router) {
 		cr.Post("/register", r.Register)
 		cr.Post("/login", r.Login)
+		cr.Post("/refresh", r.Refresh)
 
 		//cr.With(r.AuthMiddleware).Post("/orders", r.OrderSave)
 	})
@@ -37,19 +44,85 @@ func (r *Router) Configure() {
 
 func (r *Router) Register(writer http.ResponseWriter, request *http.Request) {
 
-	t, err := Generate(&models.User{}, "access", r.Config)
+	var u models.User
+	reader := json.NewDecoder(request.Body)
+	err := reader.Decode(&u)
 	if err != nil {
-		fmt.Println(err)
+		logger.Log.Error("Register error: ", err)
+		writer.WriteHeader(http.StatusBadRequest)
+		return
 	}
-	fmt.Println(t)
+	defer request.Body.Close()
 
-	writer.Write([]byte(t))
+	response, err := r.service.Register(request.Context(), &u)
+	if err != nil {
+		logger.Log.Error("Register error: ", err)
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	encoder := json.NewEncoder(writer)
+	err = encoder.Encode(response)
+	if err != nil {
+		logger.Log.Error("Register error: ", err)
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	writer.WriteHeader(http.StatusCreated)
 }
 
 func (r *Router) Login(writer http.ResponseWriter, request *http.Request) {
-	_, err := Decode("eyJhbGciOiJSUzI1NiIsImtpZCI6InYxIiwidHlwIjoiSldUIn0.eyJhdWQiOiJleGFtcGxlLWFwcCIsImV4cCI6MTc0OTgxMDk2NSwiaWF0IjoxNzQ5ODEwMDY1LCJpc3MiOiJodHRwczovL2F1dGguZXhhbXBsZS5jb20iLCJuYmYiOjE3NDk4MTAwNjUsInByZWZlcnJlZF91c2VybmFtZSI6IiIsInNjb3BlIjoib3BlbmlkIHByb2ZpbGUgZW1haWwiLCJzdWIiOjAsInR5cGUiOiJhY2Nlc3MifQ.dI2D5UV_q-Hb-ZTAs5hKWA_sdOA5EbHGg8YJ2kW0hiUJJCdLkMk3nSIK_tIWBzFiH_apz8AjEG7wBbwP5-5yBrGtOosKnDpwezmVUSB8H7I_ZaoUNCGZGPza-siOVhJgOJmSLFCsXmK7pXZIdN5_eyhNGoLL2Ib0G_uv3gTSV3zuZm7y8m9lT7vfoNa97NDIzQfePTpvzzkM6I8kJ2LxAlHATHJxVyFQwT2jA6FFEgLFFs2dgqoVfjefMzZacgfSXoc4biVwzFs0I1U9LsD7J9WWu064SRQp1TA0ce68K9SyAfEKWZiVnC2FwiULmFeaFdjuPdI_AX8qxVaa5Gia_G7GRRhVIYwZL8AVO7hJGbyo3K2W0EKNnwVH_CORoM9PYWiNT7j7IIonqH-lqKtqcEMrHHdusalFAZgiuDuWfMKp0Rdt5iR0A4hY6YrTVLVgPPKdc5q7JrF3mgREcDEtvT2XW6mXHWhxvv69qoIVfObhN6J6CzdiHfKDabvasegV8OWpyhC4OV9nNoOvTCZmZ-LLkhawRoIIQYSS08eqJTl0U8gYYZewllESiBhvmGDOVs5cR02gziBFFhz5Pgnu3sWyEDZmuB6SKhi4_DPhtFKmuQ52q5lOh0IFv_qoXs1ExJh4tc3Jht8iCADgi4NrtX3lu2FefyQx3I2F1cuwHEQ",
-		r.Config)
+
+	var u models.User
+	reader := json.NewDecoder(request.Body)
+	err := reader.Decode(&u)
 	if err != nil {
-		fmt.Println(err)
+		logger.Log.Error("Register error: ", err)
+		writer.WriteHeader(http.StatusBadRequest)
+		return
 	}
+	defer request.Body.Close()
+
+	response, err := r.service.Login(request.Context(), &u)
+	if err != nil {
+		logger.Log.Error("Login error: ", err)
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	encoder := json.NewEncoder(writer)
+	err = encoder.Encode(response)
+	if err != nil {
+		logger.Log.Error("Login error: ", err)
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	writer.WriteHeader(http.StatusOK)
+}
+
+func (r *Router) Refresh(writer http.ResponseWriter, request *http.Request) {
+
+	b, err := io.ReadAll(request.Body)
+	if err != nil {
+		logger.Log.Error("Login error: ", err)
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	defer request.Body.Close()
+
+	response, err := r.service.Refresh(request.Context(), string(b))
+	if err != nil {
+		logger.Log.Error("Login error: ", err)
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	encoder := json.NewEncoder(writer)
+	err = encoder.Encode(response)
+	if err != nil {
+		logger.Log.Error("Login error: ", err)
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	writer.WriteHeader(http.StatusOK)
 }

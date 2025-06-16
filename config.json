@@ -7,6 +7,6 @@
   "path_public_key": "./public.pem",
   "jwt_key_id": "v1",
   "app_name": "app_keeper",
-  "access_token_duration" :  "15m",
-  "refresh_token_duration" : "168h"
+  "access_token_duration" :  15,
+  "refresh_token_duration" : 168
 }

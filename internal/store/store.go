@@ -16,6 +16,7 @@ var ErrUserNotFound = errors.New("user if not found")
 
 type Repository interface {
 	User(ctx context.Context, login string) (*models.User, error)
-	SaveUser(ctx context.Context, login string, passHash []byte) (int64, error)
-	Close() error
+	SaveUser(ctx context.Context, login string, passHash []byte, salt string) (int64, error)
+	SaveToken(ctx context.Context, userID int64, token string) error
+	Close(ctx context.Context) error
 }

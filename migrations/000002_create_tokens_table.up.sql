@@ -1,7 +1,7 @@
-CREATE TABLE IF NOT EXISTS tokens (
+CREATE TABLE refresh_tokens (
         id SERIAL PRIMARY KEY,
-        access VARCHAR(255) NOT NULL,
-        refresh VARCHAR(255) NOT NULL,
-        user_id INT REFERENCES users(id) ON DELETE SET NULL,
-        created_at TIMESTAMPTZ DEFAULT NOW()
-    );
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        token TEXT NOT NULL UNIQUE,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+);

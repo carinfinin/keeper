@@ -7,10 +7,12 @@ import (
 	"github.com/carinfinin/keeper/internal/logger"
 	"github.com/carinfinin/keeper/internal/store"
 	"github.com/carinfinin/keeper/internal/store/models"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"time"
 )
 
 type Store struct {
@@ -47,17 +49,30 @@ func (s *Store) User(ctx context.Context, login string) (*models.User, error) {
 	return &user, nil
 }
 
-func (s *Store) SaveUser(ctx context.Context, login string, passHash []byte) (int64, error) {
+func (s *Store) SaveUser(ctx context.Context, login string, passHash []byte, salt string) (int64, error) {
 	var id int64
-	err := s.db.QueryRowContext(ctx, "INSERT INTO users (login, password_hash) VALUES ($1, $2) RETURNING id", login, passHash).Scan(&id)
+	err := s.db.QueryRowContext(ctx, "INSERT INTO users (login, password_hash, salt) VALUES ($1, $2, $2) RETURNING id", login, passHash, salt).Scan(&id)
 	if err != nil {
 		var errPG *pgconn.PgError
 		if errors.As(err, &errPG) && pgerrcode.IsIntegrityConstraintViolation(errPG.Code) {
 			return 0, store.ErrDouble
 		}
-
 		return 0, err
 	}
-
 	return id, nil
+}
+func (s *Store) SaveToken(ctx context.Context, userID int64, token string) error {
+	_, err := s.db.ExecContext(ctx, `
+        INSERT INTO refresh_tokens (user_id, token, expires_at) 
+        VALUES ($1, $2, $3)`,
+		userID,
+		token,
+		time.Now().Add(time.Hour*24*7),
+	)
+	return err
+}
+
+func (s *Store) Close(ctx context.Context) error {
+
+	return nil
 }
