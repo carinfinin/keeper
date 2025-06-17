@@ -38,6 +38,5 @@ func (s *Service) Login(ctx context.Context, u *models.User) (*models.AuthRespon
 }
 
 func (s *Service) Refresh(ctx context.Context, token string) (*models.AuthResponse, error) {
-
-	return &models.AuthResponse{}, nil
+	return s.Store.Refresh(ctx, token)
 }

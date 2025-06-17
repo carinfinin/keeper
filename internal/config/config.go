@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 )
 
 type Config struct {
@@ -22,13 +21,13 @@ type Config struct {
 	PublicKeyPath  string `json:"path_public_key"`
 	PrivateKey     *rsa.PrivateKey
 	PublicKey      *rsa.PublicKey
-	ReadTimeout    time.Duration `json:"read_timeout"`
-	WriteTimeout   time.Duration `json:"write_timeout"`
+	ReadTimeout    int `json:"read_timeout"`
+	WriteTimeout   int `json:"write_timeout"`
 
-	JWTKeyID             string        `json:"jwt_key_id"`
-	JWTAudience          string        `json:"app_name"`
-	AccessTokenDuration  time.Duration `json:"access_token_duration"`
-	RefreshTokenDuration time.Duration `json:"refresh_token_duration"`
+	JWTKeyID             string `json:"jwt_key_id"`
+	JWTAudience          string `json:"app_name"`
+	AccessTokenDuration  int64  `json:"access_token_duration"`
+	RefreshTokenDuration int64  `json:"refresh_token_duration"`
 }
 
 func New() *Config {

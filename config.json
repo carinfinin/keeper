@@ -8,5 +8,7 @@
   "jwt_key_id": "v1",
   "app_name": "app_keeper",
   "access_token_duration" :  15,
-  "refresh_token_duration" : 168
+  "refresh_token_duration" : 168,
+  "read_timeout" : 15,
+  "write_timeout" : 15
 }

@@ -2,6 +2,7 @@ package storepg
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"github.com/carinfinin/keeper/internal/config"
@@ -54,6 +55,60 @@ func New(cfg *config.Config) (*Store, error) {
 //		return &user, nil
 //	}
 
+func (s *Store) Refresh(ctx context.Context, refreshToken string) (*models.AuthResponse, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	var userID int64
+	var deviceID int64
+	var expiresAt time.Time
+	err = tx.QueryRowContext(ctx, `
+		SELECT user_id, device_id, expires_at 
+		FROM refresh_tokens 
+		WHERE token = $1 AND expires_at > NOW()`,
+		refreshToken,
+	).Scan(&userID, &deviceID, &expiresAt)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			logger.Log.Warn("Invalid or expired refresh token")
+			return nil, errors.New("invalid or expired refresh token")
+		}
+		logger.Log.Error("store refresh token lookup error: ", err)
+		return nil, err
+	}
+
+	u := &models.User{ID: userID}
+	row := tx.QueryRowContext(ctx, "SELECT login, salt FROM users WHERE id = $1", userID)
+	if err = row.Scan(&u.Login, &u.Salt); err != nil {
+		logger.Log.Error("store refresh get user error: ", err)
+		return nil, err
+	}
+
+	resp, err := s.genToken(ctx, u)
+	if err != nil {
+		logger.Log.Error("Refresh gen token error: ", err)
+		return nil, err
+	}
+
+	_, err = tx.ExecContext(ctx, `UPDATE refresh_tokens SET token = $1, expires_at = $2 WHERE user_id = $3 AND device_id = $4`, resp.Refresh, time.Now().Add(time.Duration(s.config.RefreshTokenDuration)*time.Hour), userID, deviceID)
+	if err != nil {
+		logger.Log.Error("store refresh update token error: ", err)
+		return nil, err
+	}
+
+	if err = tx.Commit(); err != nil {
+		logger.Log.Error("store refresh commit error: ", err)
+		return nil, err
+	}
+
+	resp.Salt = u.Salt
+	return resp, nil
+}
+
 func (s *Store) Login(ctx context.Context, u *models.User) (*models.AuthResponse, error) {
 
 	tx, err := s.db.Begin()
@@ -77,13 +132,24 @@ func (s *Store) Login(ctx context.Context, u *models.User) (*models.AuthResponse
 		return nil, err
 	}
 
+	var id int64
+	err = tx.QueryRowContext(ctx, "SELECT id FROM devices WHERE user_id = $1 AND device_name = $2", u.ID, u.DeviceName).Scan(&id)
+	if err != nil {
+		err := tx.QueryRowContext(ctx, "INSERT INTO devices (device_name, user_id) VALUES ($1, $2, $3) RETURNING id", u.DeviceName, u.ID, time.Now()).Scan(&id)
+		if err != nil {
+			logger.Log.Error("service register add device error: ", err)
+			return nil, err
+		}
+	}
+	u.DeviceID = id
+
 	resp, err := s.genToken(ctx, u)
 	if err != nil {
 		logger.Log.Error("Register gen token error: ", err)
 		return nil, err
 	}
 
-	_, err = tx.ExecContext(ctx, `INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3) ON CONFLICT (user_id) DO UPDATE SET token = EXCLUDED.token, expires_at = EXCLUDED.expires_at`, u.ID, resp.Refresh, time.Now().Add(time.Hour*24*7))
+	_, err = tx.ExecContext(ctx, `INSERT INTO refresh_tokens (user_id, token, device_id, expires_at) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO UPDATE SET token = EXCLUDED.token, expires_at = EXCLUDED.expires_at`, u.ID, resp.Refresh, u.DeviceID, time.Now().Add(time.Duration(s.config.RefreshTokenDuration)*time.Hour))
 	if err != nil {
 		logger.Log.Error("store login save token error: ", err)
 		return nil, err
@@ -129,7 +195,12 @@ func (s *Store) Register(ctx context.Context, u *models.User) (*models.AuthRespo
 	}
 	u.ID = id
 
-	fmt.Println(u)
+	err = tx.QueryRowContext(ctx, "INSERT INTO devices (device_name, user_id, last_sync) VALUES ($1, $2, $3) RETURNING id", u.DeviceName, id, time.Now()).Scan(&id)
+	if err != nil {
+		logger.Log.Error("service register add device error: ", err)
+		return nil, err
+	}
+	u.DeviceID = id
 
 	resp, err := s.genToken(ctx, u)
 	if err != nil {
@@ -137,7 +208,7 @@ func (s *Store) Register(ctx context.Context, u *models.User) (*models.AuthRespo
 		return nil, err
 	}
 
-	_, err = tx.ExecContext(ctx, `INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)`, id, resp.Refresh, time.Now().Add(time.Hour*24*7))
+	_, err = tx.ExecContext(ctx, `INSERT INTO refresh_tokens (user_id, token, device_id, expires_at) VALUES ($1, $2, $3, $4)`, id, resp.Refresh, u.DeviceID, time.Now().Add(time.Duration(s.config.RefreshTokenDuration)*time.Hour))
 	if err != nil {
 		logger.Log.Error("service register save token error: ", err)
 		return nil, err
@@ -150,17 +221,6 @@ func (s *Store) Register(ctx context.Context, u *models.User) (*models.AuthRespo
 
 	return resp, nil
 }
-
-//func (s *Store) SaveToken(ctx context.Context, userID int64, token string) error {
-//	_, err := s.db.ExecContext(ctx, `
-//        INSERT INTO refresh_tokens (user_id, token, expires_at)
-//        VALUES ($1, $2, $3)`,
-//		userID,
-//		token,
-//		time.Now().Add(time.Hour*24*7),
-//	)
-//	return err
-//}
 
 func (s *Store) genToken(ctx context.Context, u *models.User) (*models.AuthResponse, error) {
 	if u == nil {

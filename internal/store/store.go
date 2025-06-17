@@ -17,5 +17,6 @@ var ErrUserNotFound = errors.New("user if not found")
 type Repository interface {
 	Login(ctx context.Context, u *models.User) (*models.AuthResponse, error)
 	Register(ctx context.Context, u *models.User) (*models.AuthResponse, error)
+	Refresh(ctx context.Context, refreshToken string) (*models.AuthResponse, error)
 	Close(ctx context.Context) error
 }

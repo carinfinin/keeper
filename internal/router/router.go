@@ -7,7 +7,6 @@ import (
 	"github.com/carinfinin/keeper/internal/logger"
 	"github.com/carinfinin/keeper/internal/store/models"
 	"github.com/go-chi/chi"
-	"io"
 	"net/http"
 )
 
@@ -38,7 +37,7 @@ func (r *Router) Configure() {
 		cr.Post("/login", r.Login)
 		cr.Post("/refresh", r.Refresh)
 
-		//cr.With(r.AuthMiddleware).Post("/orders", r.OrderSave)
+		cr.With(r.AuthMiddleware).Get("/test", r.Test)
 	})
 }
 
@@ -53,6 +52,10 @@ func (r *Router) Register(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 	defer request.Body.Close()
+
+	u.DeviceName = request.Header.Get("User-Agent")
+
+	logger.Log.Info(u)
 
 	response, err := r.service.Register(request.Context(), &u)
 	if err != nil {
@@ -85,6 +88,8 @@ func (r *Router) Login(writer http.ResponseWriter, request *http.Request) {
 	}
 	defer request.Body.Close()
 
+	u.DeviceName = request.Header.Get("User-Agent")
+
 	response, err := r.service.Login(request.Context(), &u)
 	if err != nil {
 		logger.Log.Error("Login error: ", err)
@@ -106,27 +111,35 @@ func (r *Router) Login(writer http.ResponseWriter, request *http.Request) {
 
 func (r *Router) Refresh(writer http.ResponseWriter, request *http.Request) {
 
-	b, err := io.ReadAll(request.Body)
-	if err != nil {
-		logger.Log.Error("Login error: ", err)
-		writer.WriteHeader(http.StatusBadRequest)
+	var rt struct {
+		RefreshToken string `json:"token"`
+	}
+
+	if err := json.NewDecoder(request.Body).Decode(&rt); err != nil {
+		http.Error(writer, "Invalid request", http.StatusBadRequest)
 		return
 	}
 	defer request.Body.Close()
 
-	response, err := r.service.Refresh(request.Context(), string(b))
+	response, err := r.service.Refresh(request.Context(), rt.RefreshToken)
 	if err != nil {
 		logger.Log.Error("Login error: ", err)
-		writer.WriteHeader(http.StatusBadRequest)
+		http.Error(writer, "BadRequest", http.StatusBadRequest)
 		return
 	}
 
+	writer.Header().Set("Content-Type", "application/json")
 	encoder := json.NewEncoder(writer)
 	err = encoder.Encode(response)
 	if err != nil {
 		logger.Log.Error("Login error: ", err)
-		writer.WriteHeader(http.StatusInternalServerError)
+		http.Error(writer, "InternalServerError", http.StatusInternalServerError)
 		return
 	}
+	writer.WriteHeader(http.StatusOK)
+}
+
+func (r *Router) Test(writer http.ResponseWriter, request *http.Request) {
+
 	writer.WriteHeader(http.StatusOK)
 }
