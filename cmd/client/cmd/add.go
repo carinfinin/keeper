@@ -1,16 +1,16 @@
 package cmd
 
 import (
-	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/carinfinin/keeper/internal/crypted"
+	"github.com/carinfinin/keeper/internal/store/models"
 	"github.com/carinfinin/keeper/internal/store/storesqlite"
-	"os"
-	"strings"
-	"syscall"
+	"github.com/google/uuid"
+	"time"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 )
 
 var (
@@ -32,6 +32,11 @@ var addCmd = &cobra.Command{
 		// Парсинг мета-данных
 		metadata := make(map[string]string)
 
+		salt, _ := crypted.GenerateSalt()
+		pass := "1234"
+
+		fmt.Println("metaJSON")
+		fmt.Println(metaJSON)
 		if metaJSON != "" {
 			if err := json.Unmarshal([]byte(metaJSON), &metadata); err != nil {
 				fmt.Printf("Ошибка парсинга JSON: %v\n", err)
@@ -39,30 +44,59 @@ var addCmd = &cobra.Command{
 			}
 		}
 
-		// Обработка в зависимости от типа
+		var item models.Item
+
+		item.UID = uuid.New().String()
+		now := time.Now()
+		item.Created = now
+		item.Updated = now
+		item.Meta = metadata
+
 		switch typeData {
 		case "login":
-			// Интерактивный ввод логина и пароля
-			login, err := promptInput("Введите логин: ")
+			var login models.Login
+
+			login.Login, err = promptInput("Введите логин: ")
 			if err != nil {
 				fmt.Printf("Ошибка ввода: %v\n", err)
 				return
 			}
 
-			password, err := promptPassword("Введите пароль: ")
+			login.Password, err = promptInput("Введите пароль: ")
 			if err != nil {
 				fmt.Printf("Ошибка ввода пароля: %v\n", err)
 				return
 			}
 
-			// Проверка введенных данных
-			if login == "" || password == "" {
+			if login.Login == "" || login.Password == "" {
 				fmt.Println("Логин и пароль не могут быть пустыми")
 				return
 			}
 
 			fmt.Printf("Добавлен логин: %s\nМета-данные: %v\n", login, metadata)
-			// Здесь можно сохранить данные, например, в зашифрованном виде
+
+			data, err := json.Marshal(login)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			encrypted, err := crypted.EncryptData(data, crypted.DeriveKey(pass, string(salt)))
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			item.Type = "login"
+			item.Data = encrypted
+
+			fmt.Println("encrypted")
+			fmt.Println(encrypted)
+
+			err = storesqlite.SaveItem(context.Background(), db, &item)
+			if err != nil {
+				fmt.Println(err)
+			}
 
 		default:
 			fmt.Printf("Добавлены данные типа '%s'\nМета-данные: %v\n", typeData, metadata)
@@ -83,29 +117,3 @@ func init() {
 }
 
 // Вспомогательные функции для интерактивного ввода
-
-// promptInput запрашивает у пользователя ввод текста
-func promptInput(prompt string) (string, error) {
-	fmt.Print(prompt)
-	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(input), nil
-}
-
-// promptPassword запрашивает пароль без отображения ввода
-func promptPassword(prompt string) (string, error) {
-	fmt.Print(prompt)
-
-	// Чтение пароля без отображения символов
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
-	fmt.Println()
-
-	if err != nil {
-		return "", err
-	}
-
-	return string(bytePassword), nil
-}
