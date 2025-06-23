@@ -1,27 +1,20 @@
 package cmd
 
 import (
-	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/carinfinin/keeper/internal/keystore"
 	"github.com/carinfinin/keeper/internal/store/models"
-	"github.com/carinfinin/keeper/internal/store/storesqlite"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 	"io"
 	"net/http"
-	"os"
-	"strings"
-	"syscall"
 )
 
-func NewRegisterCmd(cfg *Config) *cobra.Command {
+func NewAuthCmd(cfg *Config) *cobra.Command {
 	return &cobra.Command{
-		Use:   "register",
-		Short: "Регистрация",
+		Use:   "auth",
+		Short: "Авторизацтя",
 		Run: func(cmd *cobra.Command, args []string) {
 
 			var login models.Login
@@ -49,7 +42,7 @@ func NewRegisterCmd(cfg *Config) *cobra.Command {
 				return
 			}
 
-			req, err := http.NewRequest(http.MethodPost, cfg.BaseURL+"/api/register", bytes.NewReader(bl))
+			req, err := http.NewRequest(http.MethodPost, cfg.BaseURL+"/api/login", bytes.NewReader(bl))
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -66,8 +59,8 @@ func NewRegisterCmd(cfg *Config) *cobra.Command {
 				return
 			}
 
-			if response.StatusCode != http.StatusCreated {
-				fmt.Println("error status code register: ", response.Status)
+			if response.StatusCode != http.StatusOK {
+				fmt.Println("error status code auth: ", response.Status)
 				return
 			}
 
@@ -95,45 +88,6 @@ func NewRegisterCmd(cfg *Config) *cobra.Command {
 			if err != nil {
 				fmt.Println(err)
 			}
-			//ks, err := keystore.GetDerivedKey()
-			//if err != nil {
-			//	fmt.Println(err)
-			//}
-			//
-			//fmt.Println(ks.EncryptedKey)
 		},
 	}
-}
-
-// promptInput запрашивает у пользователя ввод текста
-func promptInput(prompt string) (string, error) {
-	fmt.Print(prompt)
-	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(input), nil
-}
-
-// promptPassword запрашивает пароль без отображения ввода
-func promptPassword(prompt string) (string, error) {
-	fmt.Print(prompt)
-	// Чтение пароля без отображения символов
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
-	fmt.Println()
-	if err != nil {
-		return "", err
-	}
-	return string(bytePassword), nil
-}
-
-func saveCredentials(ctx context.Context, сfg *Config, a *models.AuthResponse) error {
-
-	db, err := storesqlite.InitDB(сfg.DBPAth)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	return storesqlite.UpsertTokens(ctx, db, a)
 }

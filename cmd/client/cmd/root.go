@@ -2,36 +2,36 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"strings"
-
 	"github.com/spf13/cobra"
+	"os"
 )
 
-var name string
-var uppercase bool
-
-// rootCmd - базовая команда
-var rootCmd = &cobra.Command{
-	Use:   "greet",
-	Short: "Приветствие пользователя",
-	Run: func(cmd *cobra.Command, args []string) {
-		message := fmt.Sprintf("Привет, %s!", name)
-		if uppercase {
-			message = strings.ToUpper(message)
-		}
-		fmt.Println(message)
-	},
-}
-
-func init() {
-	rootCmd.Flags().StringVarP(&name, "name", "n", "World", "Ваше имя")
-	rootCmd.Flags().BoolVarP(&uppercase, "uppercase", "u", false, "Верхний регистр")
-}
-
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		fmt.Printf("Ошибка загрузки конфига: %v\n", err)
+		os.Exit(1)
+	}
+
+	cmd := NewRootCommand(cfg)
+
+	if err = cmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+func NewRootCommand(cfg *Config) *cobra.Command {
+	rootCmd := &cobra.Command{
+		Use:   "app",
+		Short: "Мое приложение",
+	}
+	rootCmd.AddCommand(
+		NewRegisterCmd(cfg),
+		NewVersionCMD(cfg),
+		NewAddCMD(cfg),
+		NewAuthCmd(cfg),
+	)
+	return rootCmd
 }

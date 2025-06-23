@@ -5,14 +5,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Версия приложения",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("v1.0.0")
-	},
-}
-
-func init() {
-	rootCmd.AddCommand(versionCmd)
+func NewVersionCMD(cfg *Config) *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Версия приложения",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("v%s\n", cfg.Version)
+		},
+	}
 }
