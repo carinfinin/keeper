@@ -8,6 +8,7 @@ type User struct {
 	PassHash   string `json:"password" validate:"required,min=5,max=100"`
 	DeviceID   int64  `json:"-"`
 	DeviceName string `json:"-"`
+	Salt       string `json:"-"`
 }
 
 type AuthResponse struct {
@@ -17,16 +18,12 @@ type AuthResponse struct {
 }
 
 type Item struct {
-	UID     string            `json:"uid"`
-	Type    string            `json:"type"`
-	Data    []byte            `json:"data"`
-	Created time.Time         `json:"created"`
-	Updated time.Time         `json:"updated"`
-	Meta    map[string]string `json:"meta"`
-}
-type MetaData struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	UID         string    `json:"uid"`
+	Type        string    `json:"type"`
+	Data        []byte    `json:"data"`
+	Created     time.Time `json:"created"`
+	Updated     time.Time `json:"updated"`
+	Description string    `json:"description"`
 }
 
 type Login struct {

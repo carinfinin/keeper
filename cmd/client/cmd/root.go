@@ -2,13 +2,14 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/carinfinin/keeper/internal/clientcfg"
 	"github.com/spf13/cobra"
 	"os"
 )
 
 func Execute() {
 
-	cfg, err := LoadConfig()
+	cfg, err := clientcfg.LoadConfig()
 	if err != nil {
 		fmt.Printf("Ошибка загрузки конфига: %v\n", err)
 		os.Exit(1)
@@ -22,7 +23,7 @@ func Execute() {
 	}
 }
 
-func NewRootCommand(cfg *Config) *cobra.Command {
+func NewRootCommand(cfg *clientcfg.Config) *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "app",
 		Short: "Мое приложение",
@@ -32,6 +33,7 @@ func NewRootCommand(cfg *Config) *cobra.Command {
 		NewVersionCMD(cfg),
 		NewAddCMD(cfg),
 		NewAuthCmd(cfg),
+		NewGetCMD(cfg),
 	)
 	return rootCmd
 }

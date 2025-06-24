@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/carinfinin/keeper/internal/clientcfg"
 	"github.com/carinfinin/keeper/internal/keystore"
 	"github.com/carinfinin/keeper/internal/store/models"
 	"github.com/carinfinin/keeper/internal/store/storesqlite"
@@ -18,7 +19,7 @@ import (
 	"syscall"
 )
 
-func NewRegisterCmd(cfg *Config) *cobra.Command {
+func NewRegisterCmd(cfg *clientcfg.Config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "register",
 		Short: "Регистрация",
@@ -128,7 +129,7 @@ func promptPassword(prompt string) (string, error) {
 	return string(bytePassword), nil
 }
 
-func saveCredentials(ctx context.Context, сfg *Config, a *models.AuthResponse) error {
+func saveCredentials(ctx context.Context, сfg *clientcfg.Config, a *models.AuthResponse) error {
 
 	db, err := storesqlite.InitDB(сfg.DBPAth)
 	if err != nil {

@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/carinfinin/keeper/internal/clientcfg"
 	"github.com/carinfinin/keeper/internal/crypted"
+	"github.com/carinfinin/keeper/internal/keystore"
 	"github.com/carinfinin/keeper/internal/store/models"
 	"github.com/carinfinin/keeper/internal/store/storesqlite"
 	"github.com/google/uuid"
@@ -13,12 +15,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewAddCMD(cfg *Config) *cobra.Command {
+func NewAddCMD(cfg *clientcfg.Config) *cobra.Command {
 	var (
 		typeData    string
 		description string
-		tags        string
-		metaJSON    string
 	)
 
 	addCMD := &cobra.Command{
@@ -31,19 +31,9 @@ func NewAddCMD(cfg *Config) *cobra.Command {
 			}
 			defer db.Close()
 			// Парсинг мета-данных
-			metadata := make(map[string]string)
 
-			salt, _ := crypted.GenerateSalt()
-			pass := "1234"
-
-			fmt.Println("metaJSON")
-			fmt.Println(metaJSON)
-			if metaJSON != "" {
-				if err := json.Unmarshal([]byte(metaJSON), &metadata); err != nil {
-					fmt.Printf("Ошибка парсинга JSON: %v\n", err)
-					return
-				}
-			}
+			//salt, _ := crypted.GenerateSalt()
+			//pass := "1234"
 
 			var item models.Item
 
@@ -51,7 +41,13 @@ func NewAddCMD(cfg *Config) *cobra.Command {
 			now := time.Now()
 			item.Created = now
 			item.Updated = now
-			item.Meta = metadata
+			item.Description = description
+
+			key, err := keystore.GetDerivedKey()
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
 
 			switch typeData {
 			case "login":
@@ -74,7 +70,7 @@ func NewAddCMD(cfg *Config) *cobra.Command {
 					return
 				}
 
-				fmt.Printf("Добавлен логин: %s\nМета-данные: %v\n", login, metadata)
+				fmt.Printf("Добавлен логин: %s\nМета-данные: %v\n", login, description)
 
 				data, err := json.Marshal(login)
 				if err != nil {
@@ -82,7 +78,7 @@ func NewAddCMD(cfg *Config) *cobra.Command {
 					return
 				}
 
-				encrypted, err := crypted.EncryptData(data, crypted.DeriveKey(pass, string(salt)))
+				encrypted, err := crypted.EncryptData(data, key)
 				if err != nil {
 					fmt.Println(err)
 					return
@@ -94,13 +90,13 @@ func NewAddCMD(cfg *Config) *cobra.Command {
 				fmt.Println("encrypted")
 				fmt.Println(encrypted)
 
-				err = storesqlite.SaveItem(context.Background(), db, &item)
-				if err != nil {
-					fmt.Println(err)
-				}
-
 			default:
-				fmt.Printf("Добавлены данные типа '%s'\nМета-данные: %v\n", typeData, metadata)
+				fmt.Printf("Добавлены данные типа '%s'\nМета-данные: %v\n", typeData, description)
+			}
+
+			err = storesqlite.SaveItem(context.Background(), db, &item)
+			if err != nil {
+				fmt.Println(err)
 			}
 		},
 	}
@@ -109,8 +105,6 @@ func NewAddCMD(cfg *Config) *cobra.Command {
 
 	// Флаги для мета-данных
 	addCMD.Flags().StringVarP(&description, "desc", "d", "", "Описание данных")
-	addCMD.Flags().StringVar(&tags, "tags", "", "Теги (через запятую)")
-	addCMD.Flags().StringVar(&metaJSON, "meta", "", "Дополнительные мета-данные в формате JSON")
 
 	return addCMD
 }

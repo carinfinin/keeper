@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/carinfinin/keeper/internal/clientcfg"
 	"github.com/carinfinin/keeper/internal/keystore"
 	"github.com/carinfinin/keeper/internal/store/models"
 	"github.com/spf13/cobra"
@@ -11,10 +12,10 @@ import (
 	"net/http"
 )
 
-func NewAuthCmd(cfg *Config) *cobra.Command {
+func NewAuthCmd(cfg *clientcfg.Config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "auth",
-		Short: "Авторизацтя",
+		Short: "Авторизация",
 		Run: func(cmd *cobra.Command, args []string) {
 
 			var login models.Login

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/carinfinin/keeper/internal/store/models"
 	_ "github.com/mattn/go-sqlite3"
-	"strings"
 	"time"
 )
 
@@ -15,6 +14,7 @@ func InitDB(path string) (*sql.DB, error) {
 			uid TEXT PRIMARY KEY NOT NULL,
 			type TEXT NOT NULL CHECK (type IN ('login', 'text', 'binary', 'card')),
 			data BLOB NOT NULL,
+			description TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
@@ -56,26 +56,42 @@ func SaveItem(ctx context.Context, db *sql.DB, item *models.Item) error {
 		return err
 	}
 
-	_, err = tx.ExecContext(ctx, "INSERT INTO secrets (uid, type, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)", item.UID, item.Type, item.Data, item.Created, item.Updated)
+	_, err = tx.ExecContext(ctx, "INSERT INTO secrets (uid, type, data, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", item.UID, item.Type, item.Data, item.Description, item.Created, item.Updated)
 	if err != nil {
 		return err
 	}
 
-	cond := make([]string, 0)
-	values := make([]interface{}, 0)
-
-	for k, v := range item.Meta {
-		cond = append(cond, "(?, ?, ?)")
-		values = append(values, item.UID, k, v)
-	}
-	if len(cond) > 0 {
-		_, err = tx.ExecContext(ctx, "INSERT INTO metadata (secret_id, key, Value) VALUES "+strings.Join(cond, ", "), values...)
-		if err != nil {
-			return err
-		}
-	}
+	//cond := make([]string, 0)
+	//values := make([]interface{}, 0)
+	//
+	//for k, v := range item.Meta {
+	//	cond = append(cond, "(?, ?, ?)")
+	//	values = append(values, item.UID, k, v)
+	//}
+	//if len(cond) > 0 {
+	//	_, err = tx.ExecContext(ctx, "INSERT INTO metadata (secret_id, key, Value) VALUES "+strings.Join(cond, ", "), values...)
+	//	if err != nil {
+	//		return err
+	//	}
+	//}
 
 	return tx.Commit()
+}
+
+func GetItem(ctx context.Context, db *sql.DB, uid string) (*models.Item, error) {
+	var item models.Item
+
+	err := db.QueryRowContext(ctx,
+		`SELECT type, data, description, created_at, updated_at FROM secrets WHERE uid = ?`, uid).Scan(&item.Type, &item.Data, &item.Description, &item.Created, &item.Updated)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("no rows found")
+		}
+		return nil, fmt.Errorf("failed to get tokens: %w", err)
+	}
+
+	return &item, nil
 }
 
 func SaveTokens(ctx context.Context, db *sql.DB, item *models.AuthResponse) error {

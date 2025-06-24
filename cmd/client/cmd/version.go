@@ -2,10 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/carinfinin/keeper/internal/clientcfg"
 	"github.com/spf13/cobra"
 )
 
-func NewVersionCMD(cfg *Config) *cobra.Command {
+func NewVersionCMD(cfg *clientcfg.Config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Версия приложения",

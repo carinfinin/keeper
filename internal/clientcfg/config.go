@@ -1,4 +1,4 @@
-package cmd
+package clientcfg
 
 import (
 	"os"

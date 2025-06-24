@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/carinfinin/keeper/internal/config"
+	"github.com/carinfinin/keeper/internal/crypted"
 	"github.com/carinfinin/keeper/internal/logger"
 	"github.com/carinfinin/keeper/internal/store"
 	"github.com/carinfinin/keeper/internal/store/models"
@@ -28,6 +29,13 @@ func (s *Service) Register(ctx context.Context, u *models.User) (*models.AuthRes
 		logger.Log.Error("generate password error: ", err)
 		return nil, fmt.Errorf("password hashing failed: %w", err)
 	}
+	salt, err := crypted.GenerateSalt()
+	if err != nil {
+		logger.Log.Error("generate salt error: ", err)
+		return nil, fmt.Errorf("salt failed: %w", err)
+	}
+	u.Salt = salt
+
 	u.PassHash = string(passHash)
 
 	return s.Store.Register(ctx, u)

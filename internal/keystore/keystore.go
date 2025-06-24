@@ -1,6 +1,7 @@
 package keystore
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -21,7 +22,7 @@ const key = "password"
 type KeyStorage struct {
 	EncryptedKey string `json:"encrypted_key"`
 	KeyHash      string `json:"key_hash"`
-	//ServerSalt   string `json:"server_salt"`
+	// ServerSalt   string `json:"server_salt"`
 }
 
 func getStoragePath() string {
@@ -35,21 +36,20 @@ func getStoragePath() string {
 func SaveDerivedKey(password, serverSalt string) error {
 	cryptoKey := crypted.DeriveKey(password, serverSalt)
 
-	// 2. Создаем хеш ключа для проверки
+	// Создаем хеш ключа для проверки
 	keyHash := sha256.Sum256(cryptoKey)
 
-	// 3. Шифруем ключ паролем (доп. защита)
-	encrypted, err := encryptWithPassword(cryptoKey, key)
-	if err != nil {
-		return err
-	}
+	//// Шифруем ключ паролем (доп. защита)
+	//encrypted, err := encryptWithPassword(cryptoKey, key)
+	//if err != nil {
+	//	return err
+	//}
 
 	storage := KeyStorage{
-		EncryptedKey: base64.StdEncoding.EncodeToString(encrypted),
+		EncryptedKey: base64.StdEncoding.EncodeToString(cryptoKey),
 		KeyHash:      base64.StdEncoding.EncodeToString(keyHash[:]),
 	}
 
-	fmt.Println(storage)
 	return saveEncrypted(storage)
 }
 
@@ -134,20 +134,40 @@ func decryptWithPassword(ciphertext []byte, password string) ([]byte, error) {
 	return plaintext, nil
 }
 
-func GetDerivedKey() (*KeyStorage, error) {
+func GetDerivedKey() ([]byte, error) {
 	path := getStoragePath()
-	var ks KeyStorage
+
+	// Читаем файл с зашифрованным ключом
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read key file: %w", err)
 	}
 
-	err = json.Unmarshal(data, &ks)
+	// Декодируем JSON структуру
+	var storage KeyStorage
+	if err := json.Unmarshal(data, &storage); err != nil {
+		return nil, fmt.Errorf("failed to parse key file: %w", err)
+	}
+
+	// Декодируем base64 ключ
+	cryptoKey, err := base64.StdEncoding.DecodeString(storage.EncryptedKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decode encrypted key: %w", err)
 	}
 
-	b, err := decryptWithPassword([]byte(ks.EncryptedKey), key)
-	ks.EncryptedKey = string(b)
-	return &ks, nil
+	// Дополнительная проверка целостности
+	storedHash, err := base64.StdEncoding.DecodeString(storage.KeyHash)
+	if err != nil {
+		return nil, fmt.Errorf("invalid key hash format: %w", err)
+	}
+
+	computedHash := sha256.Sum256(cryptoKey)
+	if !bytes.Equal(computedHash[:], storedHash) {
+		return nil, errors.New("key data corrupted - hash mismatch")
+	}
+
+	fmt.Println("cryptoKey")
+	fmt.Println(cryptoKey)
+
+	return cryptoKey, nil
 }

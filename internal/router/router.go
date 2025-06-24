@@ -66,7 +66,7 @@ func (r *Router) Register(writer http.ResponseWriter, request *http.Request) {
 
 	encoder := json.NewEncoder(writer)
 	writer.Header().Set("Content-Type", "application/json")
-	writer.WriteHeader(http.StatusOK)
+	writer.WriteHeader(http.StatusCreated)
 
 	err = encoder.Encode(response)
 	if err != nil {

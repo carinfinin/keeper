@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -52,12 +53,12 @@ func DecryptData(encrypted []byte, key []byte) ([]byte, error) {
 	return aesgcm.Open(nil, nonce, ciphertext, nil)
 }
 
-func GenerateSalt() ([]byte, error) {
+func GenerateSalt() (string, error) {
 	salt := make([]byte, 16)
 	if _, err := rand.Read(salt); err != nil {
-		return nil, err
+		return "", err
 	}
-	return salt, nil
+	return hex.EncodeToString(salt), nil
 }
 
 // DeriveKey генерирует 32-байтный ключ из пароля и соли
