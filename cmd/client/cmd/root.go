@@ -34,6 +34,9 @@ func NewRootCommand(cfg *clientcfg.Config) *cobra.Command {
 		NewAddCMD(cfg),
 		NewAuthCmd(cfg),
 		NewGetCMD(cfg),
+		NewListCMD(cfg),
+		NewDeleteCMD(cfg),
+		NewUpdateCMD(cfg),
 	)
 	return rootCmd
 }

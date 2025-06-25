@@ -16,13 +16,8 @@ func InitDB(path string) (*sql.DB, error) {
 			data BLOB NOT NULL,
 			description TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		);
-		CREATE TABLE IF NOT EXISTS metadata (
-			  secret_id TEXT NOT NULL REFERENCES secrets(uid) ON DELETE CASCADE,
-			  key TEXT NOT NULL,
-			  value TEXT NOT NULL,
-			  PRIMARY KEY (secret_id, key)
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    		is_deleted BOOLEAN NOT NULL DEFAULT 0
 		);
 		CREATE TABLE IF NOT EXISTS tokens (
 			  id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,8 +76,7 @@ func SaveItem(ctx context.Context, db *sql.DB, item *models.Item) error {
 func GetItem(ctx context.Context, db *sql.DB, uid string) (*models.Item, error) {
 	var item models.Item
 
-	err := db.QueryRowContext(ctx,
-		`SELECT type, data, description, created_at, updated_at FROM secrets WHERE uid = ?`, uid).Scan(&item.Type, &item.Data, &item.Description, &item.Created, &item.Updated)
+	err := db.QueryRowContext(ctx, `SELECT uid, type, data, description, created_at, updated_at FROM secrets WHERE uid = ? AND is_deleted = 0`, uid).Scan(&item.UID, &item.Type, &item.Data, &item.Description, &item.Created, &item.Updated)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -92,6 +86,36 @@ func GetItem(ctx context.Context, db *sql.DB, uid string) (*models.Item, error) 
 	}
 
 	return &item, nil
+}
+
+func GetItems(ctx context.Context, db *sql.DB) ([]*models.Item, error) {
+	items := make([]*models.Item, 0)
+
+	rows, err := db.QueryContext(ctx, `SELECT uid, type, data, description, created_at, updated_at FROM secrets WHERE is_deleted = 0 ORDER BY created_at`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		tmp := models.Item{}
+		err = rows.Scan(&tmp.UID, &tmp.Type, &tmp.Data, &tmp.Description, &tmp.Created, &tmp.Updated)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, &tmp)
+	}
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("no rows found")
+		}
+		return nil, fmt.Errorf("failed to get tokens: %w", err)
+	}
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 func SaveTokens(ctx context.Context, db *sql.DB, item *models.AuthResponse) error {
@@ -164,5 +188,48 @@ func UpsertTokens(ctx context.Context, db *sql.DB, item *models.AuthResponse) er
 		return SaveTokens(ctx, db, item)
 	}
 
+	return nil
+}
+
+// DeleteItem - мягкое удаление
+func DeleteItem(ctx context.Context, db *sql.DB, uid string) error {
+	now := time.Now()
+	_, err := db.ExecContext(ctx, `UPDATE secrets SET is_deleted = 1, updated_at = ? WHERE uid = ?`, now, uid)
+	if err != nil {
+		return fmt.Errorf("failed to delete item: %w", err)
+	}
+	return nil
+}
+
+// UpdateItem - обновление данных
+func UpdateItem(ctx context.Context, db *sql.DB, item *models.Item) error {
+	now := time.Now()
+	result, err := db.ExecContext(ctx, `
+    UPDATE secrets 
+    SET 
+        data = ?, 
+        description = ?, 
+        updated_at = ?
+    WHERE 
+        uid = ? 
+        AND is_deleted = 0`,
+		item.Data,
+		item.Description,
+		now,
+		item.UID,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to update item: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check affected rows: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("item not found")
+	}
 	return nil
 }

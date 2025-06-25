@@ -1,51 +1,45 @@
 package cmd
 
 import (
+	"github.com/carinfinin/keeper/internal/service"
+	"os"
+
 	"github.com/carinfinin/keeper/internal/clientcfg"
-	"github.com/carinfinin/keeper/internal/crypted"
-	"github.com/carinfinin/keeper/internal/keystore"
-	"github.com/carinfinin/keeper/internal/store/storesqlite"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
 func NewGetCMD(cfg *clientcfg.Config) *cobra.Command {
-
 	var uid string
 
 	getCMD := cobra.Command{
 		Use:   "get",
 		Short: "Получить запись",
 		Run: func(cmd *cobra.Command, args []string) {
-
-			key, err := keystore.GetDerivedKey()
+			s, err := service.NewClientService(cfg)
 			if err != nil {
-				pterm.Error.Printf("Ключ шифрования не был получен error: %v\n", err)
-				return
+				pterm.Error.Printf("Ошибка инициализации: %v", err)
+				os.Exit(1)
+			}
+			defer s.Close()
+
+			item, err := s.GetDecryptedItem(cmd.Context(), uid)
+			if err != nil {
+				pterm.Error.Printf("Данные не были получены: %v", err)
+				os.Exit(1)
 			}
 
-			db, err := storesqlite.InitDB(cfg.DBPAth)
-			if err != nil {
-				pterm.Error.Printf("бд не запущена error: %v\n", err)
-				return
-			}
-
-			item, err := storesqlite.GetItem(cmd.Context(), db, uid)
-			if err != nil {
-				pterm.Error.Printf("запись не была получена error: %v\n", err)
-				return
-			}
-
-			decrypt, err := crypted.DecryptData(item.Data, key)
-			if err != nil {
-				pterm.Error.Printf("запись не была засшифрована error: %v\n", err)
-				return
-			}
-
-			pterm.Info.Printf("%s, %s\n", decrypt, item.Description)
+			pterm.DefaultSection.Println("Успешно получена запись:")
+			pterm.Println(pterm.LightMagenta("ID:          "), pterm.LightCyan(uid))
+			pterm.Println(pterm.LightMagenta("Описание:    "), pterm.LightCyan(item.Description))
+			pterm.Println(pterm.LightMagenta("Данные:      "), pterm.LightCyan(string(item.Data)))
+			pterm.Println(pterm.LightMagenta("Создано:     "), pterm.LightCyan(item.Created.Format("2006-01-02 15:04")))
 		},
 	}
-	getCMD.Flags().StringVar(&uid, "uid", "", "Идентификатор записи")
+
+	// Флаг с обязательным указанием
+	getCMD.Flags().StringVarP(&uid, "uid", "u", "", "Идентификатор записи (обязательно)")
+	getCMD.MarkFlagRequired("uid")
 
 	return &getCMD
 }
