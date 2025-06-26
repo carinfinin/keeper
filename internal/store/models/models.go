@@ -36,7 +36,7 @@ type Card struct {
 	CCV    string `json:"ccv"`
 }
 type File struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
-	Path string `json:"path"`
+	Name    string `json:"name"`
+	Size    int64  `json:"size"`
+	Content []byte `json:"content"`
 }

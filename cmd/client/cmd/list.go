@@ -38,7 +38,9 @@ func NewListCMD(cfg *clientcfg.Config) *cobra.Command {
 
 				pterm.Println(pterm.LightMagenta("ID:          "), pterm.LightCyan(item.UID))
 				pterm.Println(pterm.LightMagenta("Описание:    "), pterm.LightCyan(item.Description))
-				pterm.Println(pterm.LightMagenta("Данные:      "), pterm.LightCyan(string(item.Data)))
+				if item.Type != "binary" {
+					pterm.Println(pterm.LightMagenta("Данные:      "), pterm.LightCyan(string(item.Data)))
+				}
 				pterm.Println(pterm.LightMagenta("Создано:     "), pterm.LightCyan(item.Created.Format("2006-01-02 15:04")))
 				pterm.Println()
 			}

@@ -1,15 +1,12 @@
 package cmd
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
 	"github.com/carinfinin/keeper/internal/clientcfg"
-	"github.com/carinfinin/keeper/internal/crypted"
-	"github.com/carinfinin/keeper/internal/keystore"
+	"github.com/carinfinin/keeper/internal/service"
 	"github.com/carinfinin/keeper/internal/store/models"
-	"github.com/carinfinin/keeper/internal/store/storesqlite"
 	"github.com/google/uuid"
+	"github.com/pterm/pterm"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -25,85 +22,40 @@ func NewAddCMD(cfg *clientcfg.Config) *cobra.Command {
 		Use:   "add",
 		Short: "Добавление данных",
 		Run: func(cmd *cobra.Command, args []string) {
-			db, err := storesqlite.InitDB("test.db")
+			s, err := service.NewClientService(cfg)
 			if err != nil {
-				panic(err)
+				pterm.Error.Printf("Ошибка инициализации: %v", err)
+				os.Exit(1)
 			}
-			defer db.Close()
-			// Парсинг мета-данных
-
-			//salt, _ := crypted.GenerateSalt()
-			//pass := "1234"
+			defer s.Close()
 
 			var item models.Item
+			var data []byte
 
 			item.UID = uuid.New().String()
 			now := time.Now()
 			item.Created = now
 			item.Updated = now
+			item.Type = typeData
 			item.Description = description
 
-			key, err := keystore.GetDerivedKey()
+			data, err = processItemData(item.Type)
 			if err != nil {
-				fmt.Println(err)
-				return
+				pterm.Error.Printf("Ошибка обработки данных: %v", err)
+				os.Exit(1)
 			}
-
-			switch typeData {
-			case "login":
-				var login models.Login
-
-				login.Login, err = promptInput("Введите логин: ")
-				if err != nil {
-					fmt.Printf("Ошибка ввода: %v\n", err)
-					return
-				}
-
-				login.Password, err = promptInput("Введите пароль: ")
-				if err != nil {
-					fmt.Printf("Ошибка ввода пароля: %v\n", err)
-					return
-				}
-
-				if login.Login == "" || login.Password == "" {
-					fmt.Println("Логин и пароль не могут быть пустыми")
-					return
-				}
-
-				fmt.Printf("Добавлен логин: %s\nМета-данные: %v\n", login, description)
-
-				data, err := json.Marshal(login)
-				if err != nil {
-					fmt.Println(err)
-					return
-				}
-
-				encrypted, err := crypted.EncryptData(data, key)
-				if err != nil {
-					fmt.Println(err)
-					return
-				}
-
-				item.Type = "login"
-				item.Data = encrypted
-
-				fmt.Println("encrypted")
-				fmt.Println(encrypted)
-
-			default:
-				fmt.Printf("Добавлены данные типа '%s'\nМета-данные: %v\n", typeData, description)
-			}
-
-			err = storesqlite.SaveItem(context.Background(), db, &item)
+			err = s.AddDecryptedItem(cmd.Context(), &item, data)
 			if err != nil {
-				fmt.Println(err)
+				pterm.Error.Printf("Данные не были добаввлены: %v", err)
+				os.Exit(1)
 			}
+
+			pterm.DefaultSection.Printf("Запсь успешно c uid: %s добавлена\n", item.UID)
+
 		},
 	}
 
 	addCMD.Flags().StringVarP(&typeData, "type", "t", "text", "Тип данных (login, text, file, card)")
-
-	// Флаги для мета-данных
 	addCMD.Flags().StringVarP(&description, "desc", "d", "", "Описание данных")
 
 	return addCMD

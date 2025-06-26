@@ -10,6 +10,7 @@ import (
 	"github.com/carinfinin/keeper/internal/store/models"
 	"golang.org/x/term"
 	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -56,6 +57,58 @@ func (s *KeeperService) GetDecryptedItem(ctx context.Context, uid string) (*mode
 	return item, nil
 }
 
+func (s *KeeperService) GetItem(ctx context.Context, uid string) (*models.Item, error) {
+	return storesqlite.GetItem(ctx, s.db, uid)
+}
+
+func (s *KeeperService) SaveFile(ctx context.Context, outputDir string, item *models.Item) (string, error) {
+	key, err := keystore.GetDerivedKey()
+	if err != nil {
+		return "", fmt.Errorf("failed to get key: %w", err)
+	}
+
+	decrypted, err := crypted.DecryptData(item.Data, key)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt: %w", err)
+	}
+
+	var fileData models.File
+	if err := json.Unmarshal(decrypted, &fileData); err != nil {
+		return "", fmt.Errorf("Ошибка разбора файла: %v", err)
+	}
+
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return "", fmt.Errorf("Ошибка создания директории: %v", err)
+	}
+
+	outputPath := filepath.Join(outputDir, fileData.Name)
+
+	if err := os.WriteFile(outputPath, fileData.Content, 0644); err != nil {
+		return "", fmt.Errorf("Ошибка сохранения файла: %v", err)
+	}
+	return outputPath, nil
+}
+
+func (s *KeeperService) AddDecryptedItem(ctx context.Context, item *models.Item, data []byte) error {
+	key, err := keystore.GetDerivedKey()
+	if err != nil {
+		return fmt.Errorf("failed to get key: %w", err)
+	}
+
+	encrypted, err := crypted.EncryptData(data, key)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt: %w", err)
+	}
+
+	item.Data = encrypted
+
+	err = storesqlite.SaveItem(ctx, s.db, item)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt write bd: %w", err)
+	}
+	return nil
+}
+
 func (s *KeeperService) GetDecryptedItems(ctx context.Context) ([]*models.Item, error) {
 	key, err := keystore.GetDerivedKey()
 	if err != nil {
@@ -83,59 +136,20 @@ func (s *KeeperService) DeleteItem(ctx context.Context, uid string) error {
 	return storesqlite.DeleteItem(ctx, s.db, uid)
 }
 
-func (s *KeeperService) UpdateItem(ctx context.Context, uid string) error {
-
-	item, err := storesqlite.GetItem(ctx, s.db, uid)
-	if err != nil {
-		return err
-	}
+func (s *KeeperService) UpdateItem(ctx context.Context, item *models.Item, data []byte) error {
 
 	key, err := keystore.GetDerivedKey()
 	if err != nil {
 		return fmt.Errorf("Ошибка полученииия ключа шифрованиия: %v\n", err)
 	}
 
-	switch item.Type {
-	case "login":
-		var login models.Login
-
-		login.Login, err = promptInput("Введите логин: ")
-		if err != nil {
-			return fmt.Errorf("Ошибка ввода: %v\n", err)
-		}
-
-		login.Password, err = promptInput("Введите пароль: ")
-		if err != nil {
-			return fmt.Errorf("Ошибка ввода: %v\n", err)
-		}
-
-		if login.Login == "" || login.Password == "" {
-			return fmt.Errorf("Логин и пароль не могут быть пустыми")
-		}
-
-		data, err := json.Marshal(login)
-		if err != nil {
-			return fmt.Errorf("Ошибка перевода в json: %v\n", err)
-		}
-
-		fmt.Println(string(data))
-
-		encrypted, err := crypted.EncryptData(data, key)
-		if err != nil {
-			return fmt.Errorf("Ошибка при шифрованиии: %v\n", err)
-		}
-
-		fmt.Println(string(encrypted))
-
-		item.Data = encrypted
-
-	default:
-		fmt.Println("Добавлены данные типа ")
+	encrypted, err := crypted.EncryptData(data, key)
+	if err != nil {
+		return fmt.Errorf("Ошибка при шифрованиии: %v\n", err)
 	}
+	item.Data = encrypted
 
-	fmt.Println(item)
-
-	err = storesqlite.UpdateItem(context.Background(), s.db, item)
+	err = storesqlite.UpdateItem(ctx, s.db, item)
 	if err != nil {
 		return err
 	}
