@@ -24,6 +24,7 @@ type Item struct {
 	Created     time.Time `json:"created"`
 	Updated     time.Time `json:"updated"`
 	Description string    `json:"description"`
+	IsDeleted   bool      `json:"is_deleted"`
 }
 
 type Login struct {
@@ -39,4 +40,13 @@ type File struct {
 	Name    string `json:"name"`
 	Size    int64  `json:"size"`
 	Content []byte `json:"content"`
+}
+
+type Token struct {
+	Access  string `json:"access_token"`
+	Refresh string `json:"refresh_token"`
+}
+
+type LastSync struct {
+	Update time.Time `json:"update_at"`
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/carinfinin/keeper/internal/logger"
 	"github.com/carinfinin/keeper/internal/store/models"
 	"github.com/go-chi/chi"
+	"io"
 	"net/http"
 )
 
@@ -14,6 +15,8 @@ type ServiceInterface interface {
 	Register(ctx context.Context, u *models.User) (*models.AuthResponse, error)
 	Login(ctx context.Context, u *models.User) (*models.AuthResponse, error)
 	Refresh(ctx context.Context, token string) (*models.AuthResponse, error)
+	LastSync(ctx context.Context) (*models.LastSync, error)
+	SaveItems(ctx context.Context, items []*models.Item) ([]*models.Item, error)
 }
 
 type Router struct {
@@ -37,7 +40,9 @@ func (r *Router) Configure() {
 		cr.Post("/login", r.Login)
 		cr.Post("/refresh", r.Refresh)
 
-		cr.With(r.AuthMiddleware).Get("/test", r.Test)
+		cr.With(r.AuthMiddleware).Get("/last_sync", r.LastSync)
+		cr.With(r.AuthMiddleware).Post("/item", r.SaveItems)
+		//cr.With(r.AuthMiddleware).Get("/item", r.Test)
 	})
 }
 
@@ -136,10 +141,48 @@ func (r *Router) Refresh(writer http.ResponseWriter, request *http.Request) {
 		http.Error(writer, "InternalServerError", http.StatusInternalServerError)
 		return
 	}
-	writer.WriteHeader(http.StatusOK)
 }
 
-func (r *Router) Test(writer http.ResponseWriter, request *http.Request) {
+func (r *Router) LastSync(writer http.ResponseWriter, request *http.Request) {
 
-	writer.WriteHeader(http.StatusOK)
+	ls, err := r.service.LastSync(request.Context())
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusBadRequest)
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	jw := json.NewEncoder(writer)
+	err = jw.Encode(ls)
+	if err != nil {
+		http.Error(writer, "error get last sync", http.StatusInternalServerError)
+	}
+}
+
+func (r *Router) SaveItems(writer http.ResponseWriter, request *http.Request) {
+
+	items := make([]*models.Item, 0)
+	b, err := io.ReadAll(request.Body)
+	if err != nil {
+		logger.Log.Error("bad request SaveItems err: ", err)
+		http.Error(writer, "bad request", http.StatusBadRequest)
+	}
+	defer request.Body.Close()
+	err = json.Unmarshal(b, &items)
+	if err != nil {
+		logger.Log.Error("Unmarshal SaveItems err: ", err)
+		http.Error(writer, "bad request", http.StatusBadRequest)
+	}
+
+	serverItemsLast, err := r.service.SaveItems(request.Context(), items)
+	if err != nil {
+		logger.Log.Error("service SaveItems err: ", err)
+		http.Error(writer, err.Error(), http.StatusBadRequest)
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	jw := json.NewEncoder(writer)
+	err = jw.Encode(serverItemsLast)
+	if err != nil {
+		http.Error(writer, "error saveItems", http.StatusInternalServerError)
+	}
 }

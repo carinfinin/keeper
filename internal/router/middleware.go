@@ -29,7 +29,7 @@ func (r *Router) AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		logger.Log.Debug("AuthMiddleware UserId: ", data)
+		logger.Log.Info("AuthMiddleware UserId: ", data)
 		ctx := context.WithValue(request.Context(), UserData, data)
 		newReq := request.WithContext(ctx)
 		next.ServeHTTP(writer, newReq)

@@ -109,7 +109,37 @@ func GetItems(ctx context.Context, db *sql.DB) ([]*models.Item, error) {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("no rows found")
 		}
-		return nil, fmt.Errorf("failed to get tokens: %w", err)
+		return nil, err
+	}
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func GetLastItems(ctx context.Context, db *sql.DB, lastSync time.Time) ([]*models.Item, error) {
+	items := make([]*models.Item, 0)
+
+	rows, err := db.QueryContext(ctx, `SELECT uid, type, data, description, created_at, updated_at FROM secrets WHERE updated_at >= ? ORDER BY created_at`, lastSync)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		tmp := models.Item{}
+		err = rows.Scan(&tmp.UID, &tmp.Type, &tmp.Data, &tmp.Description, &tmp.Created, &tmp.Updated)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, &tmp)
+	}
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("no rows found")
+		}
+		return nil, err
 	}
 	err = rows.Err()
 	if err != nil {

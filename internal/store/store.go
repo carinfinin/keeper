@@ -19,4 +19,6 @@ type Repository interface {
 	Register(ctx context.Context, u *models.User) (*models.AuthResponse, error)
 	Refresh(ctx context.Context, refreshToken string) (*models.AuthResponse, error)
 	Close(ctx context.Context) error
+	LastSync(ctx context.Context) (*models.LastSync, error)
+	SaveItems(ctx context.Context, items []*models.Item) ([]*models.Item, error)
 }

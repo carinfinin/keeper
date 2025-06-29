@@ -48,3 +48,11 @@ func (s *Service) Login(ctx context.Context, u *models.User) (*models.AuthRespon
 func (s *Service) Refresh(ctx context.Context, token string) (*models.AuthResponse, error) {
 	return s.Store.Refresh(ctx, token)
 }
+
+func (s *Service) LastSync(ctx context.Context) (*models.LastSync, error) {
+	return s.Store.LastSync(ctx)
+}
+
+func (s *Service) SaveItems(ctx context.Context, items []*models.Item) ([]*models.Item, error) {
+	return s.Store.SaveItems(ctx, items)
+}

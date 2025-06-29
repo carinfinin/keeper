@@ -2,6 +2,7 @@ package service
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -9,10 +10,13 @@ import (
 	"github.com/carinfinin/keeper/internal/clientcfg"
 	"github.com/carinfinin/keeper/internal/store/models"
 	"golang.org/x/term"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/carinfinin/keeper/internal/crypted"
 	"github.com/carinfinin/keeper/internal/keystore"
@@ -59,6 +63,42 @@ func (s *KeeperService) GetDecryptedItem(ctx context.Context, uid string) (*mode
 
 func (s *KeeperService) GetItem(ctx context.Context, uid string) (*models.Item, error) {
 	return storesqlite.GetItem(ctx, s.db, uid)
+}
+
+func (s *KeeperService) RefreshTokens(ctx context.Context, refresh string) (*models.AuthResponse, error) {
+	var rt struct {
+		RefreshToken string `json:"token"`
+	}
+	rt.RefreshToken = refresh
+	b, err := json.Marshal(rt)
+	req, err := http.NewRequest(http.MethodPost, s.cfg.BaseURL+"/api/refresh", bytes.NewBuffer(b))
+	if err != nil {
+		return nil, fmt.Errorf("ошибка создания запроса: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", fmt.Sprintf("Keeper/%s (*%s)", s.cfg.Version, s.cfg.DocsURL))
+	client := &http.Client{}
+	response, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка выполнения запроса: %v", err)
+	}
+	defer response.Body.Close()
+	rb, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
+	var t models.AuthResponse
+	err = json.Unmarshal(rb, &t)
+	if err != nil {
+		return nil, err
+	}
+
+	err = storesqlite.SaveTokens(ctx, s.db, &t)
+	if err != nil {
+		return nil, err
+	}
+
+	return &t, nil
 }
 
 func (s *KeeperService) SaveFile(ctx context.Context, outputDir string, item *models.Item) (string, error) {
@@ -136,6 +176,14 @@ func (s *KeeperService) DeleteItem(ctx context.Context, uid string) error {
 	return storesqlite.DeleteItem(ctx, s.db, uid)
 }
 
+func (s *KeeperService) GetLastChanges(ctx context.Context, lastSync time.Time) ([]*models.Item, error) {
+	return storesqlite.GetLastItems(ctx, s.db, lastSync)
+}
+
+func (s *KeeperService) MergeLastChanges(ctx context.Context, items []*models.Item) error {
+	return nil
+}
+
 func (s *KeeperService) UpdateItem(ctx context.Context, item *models.Item, data []byte) error {
 
 	key, err := keystore.GetDerivedKey()
@@ -177,4 +225,8 @@ func promptPassword(prompt string) (string, error) {
 		return "", err
 	}
 	return string(bytePassword), nil
+}
+
+func (s *KeeperService) GetTokens(ctx context.Context) (*models.AuthResponse, error) {
+	return storesqlite.GetTokens(ctx, s.db)
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/carinfinin/keeper/internal/config"
 	"github.com/carinfinin/keeper/internal/jwtr"
 	"github.com/carinfinin/keeper/internal/logger"
+	"github.com/carinfinin/keeper/internal/router"
 	"github.com/carinfinin/keeper/internal/store"
 	"github.com/carinfinin/keeper/internal/store/models"
 	"github.com/jackc/pgerrcode"
@@ -23,6 +24,8 @@ type Store struct {
 	db     *sqlx.DB
 	config *config.Config
 }
+
+var NotFoundRows error = errors.New("not found rows")
 
 func New(cfg *config.Config) (*Store, error) {
 	db, err := sqlx.Open("pgx", cfg.DBPath)
@@ -195,12 +198,11 @@ func (s *Store) Register(ctx context.Context, u *models.User) (*models.AuthRespo
 	}
 	u.ID = id
 
-	err = tx.QueryRowContext(ctx, "INSERT INTO devices (device_name, user_id, last_sync) VALUES ($1, $2, $3) RETURNING id", u.DeviceName, id, time.Now()).Scan(&id)
+	err = tx.QueryRowContext(ctx, "INSERT INTO devices (device_name, user_id, last_sync) VALUES ($1, $2, $3) RETURNING id", u.DeviceName, id, time.Now()).Scan(&u.DeviceID)
 	if err != nil {
 		logger.Log.Error("service register add device error: ", err)
 		return nil, err
 	}
-	u.DeviceID = id
 
 	resp, err := s.genToken(ctx, u)
 	if err != nil {
@@ -253,4 +255,94 @@ func (s *Store) genToken(ctx context.Context, u *models.User) (*models.AuthRespo
 func (s *Store) Close(ctx context.Context) error {
 
 	return nil
+}
+
+func (s *Store) SaveItems(ctx context.Context, items []*models.Item) ([]*models.Item, error) {
+	userData, ok := ctx.Value(router.UserData).(*jwtr.JwtData)
+	if !ok {
+		return nil, fmt.Errorf("неверный тип данных пользователя в контексте")
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	savedItems := make([]string, 0)
+
+	stmt, err := tx.PrepareContext(ctx, `
+        INSERT INTO secrets (
+            uid, user_id, type, data, description, created_at, updated_at, is_deleted
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (uid) DO UPDATE SET
+            type = EXCLUDED.type,
+            user_id = EXCLUDED.user_id,
+            data = EXCLUDED.data,
+            description = EXCLUDED.description,
+            updated_at = EXCLUDED.updated_at,
+            is_deleted = EXCLUDED.is_deleted
+        WHERE secrets.updated_at < EXCLUDED.updated_at
+        RETURNING uid`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, item := range items {
+
+		var uid string
+
+		err = stmt.QueryRowContext(
+			ctx,
+			item.UID,
+			userData.UserID,
+			item.Type,
+			item.Data,
+			item.Description,
+			item.Created,
+			item.UID,
+			item.IsDeleted,
+		).Scan(
+			&uid,
+		)
+
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			return nil, fmt.Errorf("failed to save item %s: %w", item.UID, err)
+		}
+
+		savedItems = append(savedItems, uid)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil, nil
+}
+
+func (s *Store) LastSync(ctx context.Context) (*models.LastSync, error) {
+	userData, ok := ctx.Value(router.UserData).(*jwtr.JwtData)
+	if !ok {
+		return nil, fmt.Errorf("неверный тип данных пользователя в контексте")
+	}
+
+	var ls models.LastSync
+	err := s.db.QueryRowContext(ctx, `
+		SELECT last_sync 
+		FROM devices 
+		WHERE id = $1`,
+		userData.UserID,
+	).Scan(&ls.Update)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, NotFoundRows
+		}
+		return nil, err
+	}
+	return &ls, nil
 }
