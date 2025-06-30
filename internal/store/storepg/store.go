@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 	"time"
@@ -45,18 +46,6 @@ func New(cfg *config.Config) (*Store, error) {
 		config: cfg,
 	}, nil
 }
-
-//	func (s *Store) User(ctx context.Context, login string) (*models.User, error) {
-//		user := models.User{
-//			Login: login,
-//		}
-//		row := s.db.QueryRowContext(ctx, "SELECT id, password_hash FROM users WHERE login = $1", login)
-//		row.Scan(&user.ID, &user.PassHash)
-//		if err := row.Err(); err != nil {
-//			return nil, err
-//		}
-//		return &user, nil
-//	}
 
 func (s *Store) Refresh(ctx context.Context, refreshToken string) (*models.AuthResponse, error) {
 	tx, err := s.db.Begin()
@@ -138,7 +127,7 @@ func (s *Store) Login(ctx context.Context, u *models.User) (*models.AuthResponse
 	var id int64
 	err = tx.QueryRowContext(ctx, "SELECT id FROM devices WHERE user_id = $1 AND device_name = $2", u.ID, u.DeviceName).Scan(&id)
 	if err != nil {
-		err := tx.QueryRowContext(ctx, "INSERT INTO devices (device_name, user_id) VALUES ($1, $2, $3) RETURNING id", u.DeviceName, u.ID, time.Now()).Scan(&id)
+		err := tx.QueryRowContext(ctx, "INSERT INTO devices (device_name, user_id) VALUES ($1, $2) RETURNING id", u.DeviceName, u.ID).Scan(&id)
 		if err != nil {
 			logger.Log.Error("service register add device error: ", err)
 			return nil, err
@@ -163,19 +152,6 @@ func (s *Store) Login(ctx context.Context, u *models.User) (*models.AuthResponse
 
 	return resp, nil
 }
-
-//func (s *Store) SaveUser(ctx context.Context, u *models.User) (int64, error) {
-//	var id int64
-//	err := s.db.QueryRowContext(ctx, "INSERT INTO users (login, password_hash, salt) VALUES ($1, $2, $2) RETURNING id", u.Login, u.PassHash, u.Salt).Scan(&id)
-//	if err != nil {
-//		var errPG *pgconn.PgError
-//		if errors.As(err, &errPG) && pgerrcode.IsIntegrityConstraintViolation(errPG.Code) {
-//			return 0, store.ErrDouble
-//		}
-//		return 0, err
-//	}
-//	return id, nil
-//}
 
 func (s *Store) Register(ctx context.Context, u *models.User) (*models.AuthResponse, error) {
 
@@ -258,6 +234,7 @@ func (s *Store) Close(ctx context.Context) error {
 }
 
 func (s *Store) SaveItems(ctx context.Context, items []*models.Item) ([]*models.Item, error) {
+
 	userData, ok := ctx.Value(router.UserData).(*jwtr.JwtData)
 	if !ok {
 		return nil, fmt.Errorf("неверный тип данных пользователя в контексте")
@@ -269,7 +246,7 @@ func (s *Store) SaveItems(ctx context.Context, items []*models.Item) ([]*models.
 	}
 	defer tx.Rollback()
 
-	savedItems := make([]string, 0)
+	uids := make([]string, 0)
 
 	stmt, err := tx.PrepareContext(ctx, `
         INSERT INTO secrets (
@@ -280,6 +257,7 @@ func (s *Store) SaveItems(ctx context.Context, items []*models.Item) ([]*models.
             user_id = EXCLUDED.user_id,
             data = EXCLUDED.data,
             description = EXCLUDED.description,
+            created_at = EXCLUDED.created_at,
             updated_at = EXCLUDED.updated_at,
             is_deleted = EXCLUDED.is_deleted
         WHERE secrets.updated_at < EXCLUDED.updated_at
@@ -301,7 +279,7 @@ func (s *Store) SaveItems(ctx context.Context, items []*models.Item) ([]*models.
 			item.Data,
 			item.Description,
 			item.Created,
-			item.UID,
+			item.Updated,
 			item.IsDeleted,
 		).Scan(
 			&uid,
@@ -314,14 +292,69 @@ func (s *Store) SaveItems(ctx context.Context, items []*models.Item) ([]*models.
 			return nil, fmt.Errorf("failed to save item %s: %w", item.UID, err)
 		}
 
-		savedItems = append(savedItems, uid)
+		uids = append(uids, uid)
 	}
 
-	if err := tx.Commit(); err != nil {
+	// get
+
+	var ls models.LastSync
+	err = tx.QueryRowContext(ctx, `SELECT last_sync FROM devices WHERE id = $1`, userData.DeviceID).Scan(&ls.Update)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			logger.Log.Error("client not found")
+			return nil, NotFoundRows
+		}
+		return nil, err
+	}
+
+	res := make([]*models.Item, 0)
+	params := []interface{}{ls.Update, userData.UserID}
+
+	query := `SELECT uid, type, data, description, created_at, updated_at, is_deleted 
+			  FROM secrets 
+			  WHERE updated_at > $1 AND user_id = $2`
+
+	if len(uids) > 0 {
+		query += " AND NOT (uid = ANY($3))"
+		params = append(params, pq.Array(uids))
+	}
+
+	fmt.Println(query)
+	fmt.Println(params)
+
+	rows, err := tx.QueryContext(ctx, query, params...)
+	if err != nil {
+		logger.Log.Error("ошибка получения изменённых записей с сервера")
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		tmp := models.Item{}
+		err = rows.Scan(&tmp.UID, &tmp.Type, &tmp.Data, &tmp.Description, &tmp.Created, &tmp.Updated, &tmp.IsDeleted)
+		if err != nil {
+			logger.Log.Error("ошибка при сканировании получения изменённых с сервера err: ", err)
+			return nil, err
+		}
+		res = append(res, &tmp)
+	}
+	err = rows.Err()
+	if err != nil {
+		logger.Log.Error("ошибка получения изменённых с сервера err: ", err)
+		return nil, err
+	}
+
+	_, err = tx.ExecContext(ctx, `UPDATE devices SET last_sync = $1 WHERE id = $2`, time.Now(), userData.DeviceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update last sync device: %w", err)
+	}
+
+	if err = tx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	return nil, nil
+	return res, nil
 }
 
 func (s *Store) LastSync(ctx context.Context) (*models.LastSync, error) {
@@ -335,7 +368,7 @@ func (s *Store) LastSync(ctx context.Context) (*models.LastSync, error) {
 		SELECT last_sync 
 		FROM devices 
 		WHERE id = $1`,
-		userData.UserID,
+		userData.DeviceID,
 	).Scan(&ls.Update)
 
 	if err != nil {

@@ -12,7 +12,7 @@ import (
 const (
 	jobName    = "keeper-worker-cron"
 	binPath    = "/usr/local/bin/keeper-worker" // Путь к бинарнику
-	cronConfig = "*/20 * * * * *"               // Каждые 20 секунд
+	cronConfig = "*/1 * * * *"
 )
 
 func main() {
@@ -36,6 +36,11 @@ func setupUnixCron() {
 		cronJob = fmt.Sprintf("PATH=/usr/local/bin:/usr/bin:/bin\n%s", cronJob)
 	}
 
+	// Добавляем перенос строки в конце
+	if !strings.HasSuffix(cronJob, "\n") {
+		cronJob += "\n"
+	}
+
 	// Временный файл для cron
 	tmpFile := fmt.Sprintf("/tmp/%s.cron", jobName)
 	if err := os.WriteFile(tmpFile, []byte(cronJob), 0644); err != nil {
@@ -43,12 +48,20 @@ func setupUnixCron() {
 		os.Exit(1)
 	}
 
-	// Добавляем в crontab
-	cmd := exec.Command("bash", "-c", fmt.Sprintf("crontab -l | grep -v '%s' | cat - %s | crontab -", jobName, tmpFile))
+	// Безопасное добавление в crontab
+	cmd := exec.Command("bash", "-c", fmt.Sprintf(
+		`(crontab -l 2>/dev/null | grep -vF "%s"; 
+        cat "%s") | crontab -`,
+		jobName, tmpFile))
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Error adding to crontab: %v\n", err)
+		// Для отладки выводим содержимое файла
+		if data, err := os.ReadFile(tmpFile); err == nil {
+			fmt.Printf("Cron content that failed to install:\n%s\n", data)
+		}
 		os.Exit(1)
 	}
 
@@ -77,21 +90,6 @@ func setupWindowsScheduler() {
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Error creating scheduled task: %v\n", err)
-
-		// Альтернатива через PowerShell
-		psScript := fmt.Sprintf(
-			`$action = New-ScheduledTaskAction -Execute '%s';
-			$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1);
-			Register-ScheduledTask -TaskName '%s' -Action $action -Trigger $trigger -Force`,
-			exePath, jobName)
-
-		psCmd := exec.Command("powershell", "-Command", psScript)
-		psCmd.Stdout = os.Stdout
-		psCmd.Stderr = os.Stderr
-		if psErr := psCmd.Run(); psErr != nil {
-			fmt.Printf("PowerShell fallback also failed: %v\n", psErr)
-			os.Exit(1)
-		}
 	}
 
 	fmt.Printf("Scheduled task '%s' successfully installed\n", jobName)

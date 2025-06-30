@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/carinfinin/keeper/internal/clientcfg"
+	"github.com/carinfinin/keeper/internal/fingerprint"
 	"github.com/carinfinin/keeper/internal/service"
 	"github.com/carinfinin/keeper/internal/store/models"
 	"io"
@@ -64,7 +65,6 @@ func main() {
 		fmt.Printf("ошибка получения GetLastChanges: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Println(localChanges)
 
 	// Отправляем на сервер
 	serverChanges, err := w.PushLastChanges(context.Background(), localChanges)
@@ -76,11 +76,11 @@ func main() {
 	fmt.Println(serverChanges)
 
 	//// Применяем серверные изменения
-	//err = w.service.MergeLastChanges(context.Background(), serverChanges)
-	//if err != nil {
-	//	fmt.Printf("ошибка сохранения MergeLastChanges: %v\n", err)
-	//	os.Exit(1)
-	//}
+	err = w.service.MergeLastChanges(context.Background(), serverChanges)
+	if err != nil {
+		fmt.Printf("ошибка сохранения MergeLastChanges: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func (w *Worker) request(cfg *clientcfg.Config, methodHTTP, pathMethod string, body []byte) ([]byte, error) {
@@ -95,9 +95,11 @@ func (w *Worker) request(cfg *clientcfg.Config, methodHTTP, pathMethod string, b
 		return nil, fmt.Errorf("ошибка создания запроса: %v", err)
 	}
 
+	fp := fingerprint.Get()
+	deviceID := fp.GenerateHash()
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+tokens.Access)
-	req.Header.Set("User-Agent", fmt.Sprintf("Keeper/%s (*%s)", cfg.Version, cfg.DocsURL))
+	req.Header.Add("User-Agent", fmt.Sprintf("Kepper/%s (*%s)", cfg.Version, deviceID))
 
 	client := &http.Client{}
 	response, err := client.Do(req)
@@ -105,9 +107,6 @@ func (w *Worker) request(cfg *clientcfg.Config, methodHTTP, pathMethod string, b
 		return nil, fmt.Errorf("ошибка выполнения запроса: %v", err)
 	}
 	defer response.Body.Close()
-
-	fmt.Println("StatusCode")
-	fmt.Println(response.StatusCode)
 
 	if response.StatusCode == http.StatusUnauthorized {
 		newTokens, err := w.service.RefreshTokens(context.Background(), tokens.Refresh)
@@ -147,6 +146,7 @@ func (w *Worker) PushLastChanges(ctx context.Context, items []*models.Item) ([]*
 	if err != nil {
 		return nil, err
 	}
+
 	err = json.Unmarshal(buf, &res)
 	if err != nil {
 		return nil, err

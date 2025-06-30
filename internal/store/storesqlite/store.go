@@ -263,3 +263,34 @@ func UpdateItem(ctx context.Context, db *sql.DB, item *models.Item) error {
 	}
 	return nil
 }
+
+func UpdateItems(ctx context.Context, db *sql.DB, items []*models.Item) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.PrepareContext(ctx, `INSERT INTO secrets (
+            uid, type, data, description, created_at, updated_at, is_deleted
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (uid) DO UPDATE SET
+            type = EXCLUDED.type,
+            data = EXCLUDED.data,
+            description = EXCLUDED.description,
+            updated_at = EXCLUDED.updated_at,
+            created_at = EXCLUDED.created_at,
+            is_deleted = EXCLUDED.is_deleted`)
+	if err != nil {
+		return err
+	}
+
+	for _, item := range items {
+		_, err = stmt.ExecContext(ctx, item.UID, item.Type, item.Data, item.Description, item.Created, item.Updated, item.IsDeleted)
+		if err != nil {
+			return fmt.Errorf("failed to save item %s: %w", item.UID, err)
+		}
+	}
+
+	return tx.Commit()
+}

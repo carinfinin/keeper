@@ -181,7 +181,7 @@ func (s *KeeperService) GetLastChanges(ctx context.Context, lastSync time.Time) 
 }
 
 func (s *KeeperService) MergeLastChanges(ctx context.Context, items []*models.Item) error {
-	return nil
+	return storesqlite.UpdateItems(ctx, s.db, items)
 }
 
 func (s *KeeperService) UpdateItem(ctx context.Context, item *models.Item, data []byte) error {

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/carinfinin/keeper/internal/clientcfg"
+	"github.com/carinfinin/keeper/internal/fingerprint"
 	"github.com/carinfinin/keeper/internal/keystore"
 	"github.com/carinfinin/keeper/internal/store/models"
 	"github.com/carinfinin/keeper/internal/store/storesqlite"
@@ -55,8 +56,12 @@ func NewRegisterCmd(cfg *clientcfg.Config) *cobra.Command {
 				fmt.Println(err)
 				return
 			}
+
+			fp := fingerprint.Get()
+			deviceID := fp.GenerateHash()
+
 			req.Header.Add("Content-Type", "application/json")
-			req.Header.Add("User-Agent", fmt.Sprintf("Kepper/%s (*%s)", cfg.Version, cfg.DocsURL))
+			req.Header.Add("User-Agent", fmt.Sprintf("Kepper/%s (*%s)", cfg.Version, deviceID))
 
 			client := http.DefaultClient
 
