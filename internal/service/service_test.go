@@ -18,7 +18,7 @@ func TestService_Register(t *testing.T) {
 		name        string
 		user        *models.User
 		mockSetup   func(*store.MockRepository)
-		wantErr     bool
+		wantErr     boolпшефтср
 		expectedErr error
 	}{
 		{
