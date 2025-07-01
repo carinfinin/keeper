@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewAddCMD возвращает команду добавления данных
 func NewAddCMD(cfg *clientcfg.Config) *cobra.Command {
 	var (
 		typeData    string

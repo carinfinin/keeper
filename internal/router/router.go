@@ -11,6 +11,7 @@ import (
 	"net/http"
 )
 
+//go:generate go run github.com/vektra/mockery/v2@v2.52.2 --name=ServiceInterface --filename=servicemock_test.go --inpackage
 type ServiceInterface interface {
 	Register(ctx context.Context, u *models.User) (*models.AuthResponse, error)
 	Login(ctx context.Context, u *models.User) (*models.AuthResponse, error)

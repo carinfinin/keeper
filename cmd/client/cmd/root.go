@@ -7,6 +7,7 @@ import (
 	"os"
 )
 
+// Execute инициализация.
 func Execute() {
 
 	cfg, err := clientcfg.LoadConfig()
@@ -23,6 +24,7 @@ func Execute() {
 	}
 }
 
+// NewRootCommand сборка команд.
 func NewRootCommand(cfg *clientcfg.Config) *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "app",

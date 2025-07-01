@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,21 +11,33 @@ import (
 )
 
 const (
-	jobName    = "keeper-worker-cron"
-	binPath    = "/usr/local/bin/keeper-worker" // Путь к бинарнику
+	jobName = "keeper-worker-cron"
+	// ожидается что файл будет передаваться вторым аргументом
+	binPath    = "" // /usr/local/bin/keeper-worker
 	cronConfig = "*/1 * * * *"
 )
 
 func main() {
-	switch runtime.GOOS {
-	case "linux", "darwin":
-		setupUnixCron()
-	case "windows":
-		setupWindowsScheduler()
-	default:
-		fmt.Printf("Unsupported OS: %s\n", runtime.GOOS)
-		os.Exit(1)
+
+	if len(os.Args) < 2 {
+		log.Fatal("не указан путь к воркеру")
 	}
+	binPath := os.Args[1] // разрешить указать путь вручную
+	err := verifyFile(binPath)
+	if err != nil {
+		log.Fatal("не удалось получить файл error: ", err)
+	}
+	fmt.Println(binPath)
+
+	//switch runtime.GOOS {
+	//case "linux", "darwin":
+	//	setupUnixCron()
+	//case "windows":
+	//	setupWindowsScheduler()
+	//default:
+	//	fmt.Printf("Unsupported OS: %s\n", runtime.GOOS)
+	//	os.Exit(1)
+	//}
 }
 
 // Настройка cron для Linux/macOS
@@ -48,7 +61,7 @@ func setupUnixCron() {
 		os.Exit(1)
 	}
 
-	// Безопасное добавление в crontab
+	// Добавление в crontab
 	cmd := exec.Command("bash", "-c", fmt.Sprintf(
 		`(crontab -l 2>/dev/null | grep -vF "%s"; 
         cat "%s") | crontab -`,
@@ -103,4 +116,17 @@ func runCommand(name string, arg ...string) error {
 	cmd.Stderr = os.Stderr
 
 	return cmd.Run()
+}
+
+func verifyFile(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+
+	if info.IsDir() {
+		return fmt.Errorf("path is a directory")
+	}
+
+	return nil
 }

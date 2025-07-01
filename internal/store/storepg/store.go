@@ -21,13 +21,16 @@ import (
 	"time"
 )
 
+// Store представляет основную структуру хранилища.
 type Store struct {
 	db     *sqlx.DB
 	config *config.Config
 }
 
+// NotFoundRows - ошибка, возвращаемая когда запрашиваемые данные не найдены.
 var NotFoundRows error = errors.New("not found rows")
 
+// New создает новое подключение к хранилищу PostgreSQL.
 func New(cfg *config.Config) (*Store, error) {
 	db, err := sqlx.Open("pgx", cfg.DBPath)
 	if err != nil {
@@ -47,6 +50,7 @@ func New(cfg *config.Config) (*Store, error) {
 	}, nil
 }
 
+// Refresh обновляет пару access/refresh токенов по валидному refresh токену.
 func (s *Store) Refresh(ctx context.Context, refreshToken string) (*models.AuthResponse, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -101,6 +105,7 @@ func (s *Store) Refresh(ctx context.Context, refreshToken string) (*models.AuthR
 	return resp, nil
 }
 
+// Login выполняет аутентификацию пользователя по логину и паролю.
 func (s *Store) Login(ctx context.Context, u *models.User) (*models.AuthResponse, error) {
 
 	tx, err := s.db.Begin()
@@ -153,6 +158,7 @@ func (s *Store) Login(ctx context.Context, u *models.User) (*models.AuthResponse
 	return resp, nil
 }
 
+// Register регистрирует нового пользователя в системе.
 func (s *Store) Register(ctx context.Context, u *models.User) (*models.AuthResponse, error) {
 
 	tx, err := s.db.Begin()
@@ -200,6 +206,7 @@ func (s *Store) Register(ctx context.Context, u *models.User) (*models.AuthRespo
 	return resp, nil
 }
 
+// genToken генерирует новую пару JWT токенов для пользователя.
 func (s *Store) genToken(ctx context.Context, u *models.User) (*models.AuthResponse, error) {
 	if u == nil {
 		logger.Log.Error("nil user in genToken")
@@ -228,11 +235,12 @@ func (s *Store) genToken(ctx context.Context, u *models.User) (*models.AuthRespo
 	}, nil
 }
 
+// Close закрывает соединение с базой данных.
 func (s *Store) Close(ctx context.Context) error {
-
-	return nil
+	return s.db.Close()
 }
 
+// SaveItems сохраняет или обновляет массив элементов в хранилище.
 func (s *Store) SaveItems(ctx context.Context, items []*models.Item) ([]*models.Item, error) {
 
 	userData, ok := ctx.Value(router.UserData).(*jwtr.JwtData)
@@ -357,6 +365,7 @@ func (s *Store) SaveItems(ctx context.Context, items []*models.Item) ([]*models.
 	return res, nil
 }
 
+// LastSync возвращает время последней синхронизации для текущего устройства.
 func (s *Store) LastSync(ctx context.Context) (*models.LastSync, error) {
 	userData, ok := ctx.Value(router.UserData).(*jwtr.JwtData)
 	if !ok {

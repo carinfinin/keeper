@@ -10,8 +10,10 @@ import (
 
 type keyUserID string
 
+// UserData константа для хранения в контексте.
 const UserData keyUserID = "userData"
 
+// AuthMiddleware .
 func (r *Router) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 

@@ -1,16 +1,27 @@
+VERSION = 1.0.0
+BUILD_DATE = $(shell date +'%Y-%m-%d %H:%M:%S')
+
 gen_private_key:
 	openssl genpkey -algorithm RSA -out private.pem -pkeyopt rsa_keygen_bits:4096
 
 gen_public_key:
 	openssl rsa -pubout -in private.pem -out public.pem
 
-run:
-	@echo "Start app"
-	go run ./cmd/gophermart/main.go
+run_server:
+	@echo "Start server"
+	go run ./cmd/server/main.go
 
-build:
+build_client:
 	@echo "Build app"
-	go build -o ./cmd/gophermart/main.go
+	go build -ldflags="\
+ 		-X 'github.com/carinfinin/keeper/internal/buildinfo.Version=${VERSION}' \
+        -X 'github.com/carinfinin/keeper/internal/buildinfo.BuildDate=${BUILD_DATE}'" \
+		-o client ./cmd/client/main.go
+
+build_server:
+	@echo "Build app"
+	go build -o server ./cmd/server/main.go
+
 all:
 	@echo "Start build app"
 

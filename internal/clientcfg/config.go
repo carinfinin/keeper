@@ -1,12 +1,12 @@
 package clientcfg
 
 import (
+	"github.com/spf13/viper"
 	"os"
 	"path/filepath"
-
-	"github.com/spf13/viper"
 )
 
+// Config для клиента.
 type Config struct {
 	BaseURL string `mapstructure:"base_url"`
 	Version string `mapstructure:"version"`
@@ -14,11 +14,12 @@ type Config struct {
 	DBPAth  string `mapstructure:"db_path"`
 }
 
+// LoadConfig конструктор.
 func LoadConfig() (*Config, error) {
 	viper.SetDefault("base_url", "http://localhost:8080")
 	viper.SetDefault("version", "1.0.0")
 	viper.SetDefault("docs_url", "http://localhost:8080/docs")
-	viper.SetDefault("db_path", "test.db")
+	viper.SetDefault("db_path", "keeper.db")
 
 	home, err := os.UserHomeDir()
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewListCMD возвращвет команду получения всех данных.
 func NewListCMD(cfg *clientcfg.Config) *cobra.Command {
 
 	return &cobra.Command{

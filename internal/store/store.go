@@ -7,13 +7,8 @@ import (
 )
 
 var ErrDouble = errors.New("login already taken")
-var ErrNotAuth = errors.New("invalid login password pair")
-var ErrRowDouble = errors.New("rows double")
-var ErrBusy = errors.New("uploaded by another user")
-var ErrBalanceLow = errors.New("there are insufficient funds in the account")
 
-var ErrUserNotFound = errors.New("user if not found")
-
+//go:generate go run github.com/vektra/mockery/v2@v2.52.2 --name=Repository --filename=repositorymock_test.go --inpackage
 type Repository interface {
 	Login(ctx context.Context, u *models.User) (*models.AuthResponse, error)
 	Register(ctx context.Context, u *models.User) (*models.AuthResponse, error)

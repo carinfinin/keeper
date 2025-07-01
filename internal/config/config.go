@@ -12,6 +12,7 @@ import (
 	"os"
 )
 
+// Config для сервера.
 type Config struct {
 	Addr           string `json:"address"`
 	DBPath         string `json:"database_dsn"`
@@ -30,6 +31,7 @@ type Config struct {
 	RefreshTokenDuration int64  `json:"refresh_token_duration"`
 }
 
+// Config конструктор.
 func New() *Config {
 	var configPath string
 	flag.StringVar(&configPath, "c", "config.json", "config file path")
@@ -73,6 +75,7 @@ func configRead(path string) (*Config, error) {
 	return &cfg, nil
 }
 
+// loadKeys читает загружает ключи.
 func loadKeys(private, public string) (*rsa.PrivateKey, *rsa.PublicKey, error) {
 
 	// PublicKey

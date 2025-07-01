@@ -1,3 +1,4 @@
+// keystore хранит ключи шифрует и дешифрует данные.
 package keystore
 
 import (
@@ -17,14 +18,16 @@ import (
 	"path/filepath"
 )
 
-const key = "password"
+// const key = "password"
 
+// KeyStorage.
 type KeyStorage struct {
 	EncryptedKey string `json:"encrypted_key"`
 	KeyHash      string `json:"key_hash"`
 	// ServerSalt   string `json:"server_salt"`
 }
 
+// getStoragePath.
 func getStoragePath() string {
 	configDir, err := os.UserConfigDir()
 	if err != nil {
@@ -33,6 +36,7 @@ func getStoragePath() string {
 	return filepath.Join(configDir, "keystore.bin")
 }
 
+// SaveDerivedKey зосдаёт ключ шифрования по паролю и соли с сервера.
 func SaveDerivedKey(password, serverSalt string) error {
 	cryptoKey := crypted.DeriveKey(password, serverSalt)
 
@@ -134,9 +138,9 @@ func decryptWithPassword(ciphertext []byte, password string) ([]byte, error) {
 	return plaintext, nil
 }
 
+// GetDerivedKey возвращает ключ шифрования.
 func GetDerivedKey() ([]byte, error) {
 	path := getStoragePath()
-
 	// Читаем файл с зашифрованным ключом
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -165,9 +169,6 @@ func GetDerivedKey() ([]byte, error) {
 	if !bytes.Equal(computedHash[:], storedHash) {
 		return nil, errors.New("key data corrupted - hash mismatch")
 	}
-
-	fmt.Println("cryptoKey")
-	fmt.Println(cryptoKey)
 
 	return cryptoKey, nil
 }

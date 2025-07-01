@@ -10,11 +10,13 @@ import (
 	"time"
 )
 
+// Server.
 type Server struct {
 	http.Server
 	Config *config.Config
 }
 
+// New конструктор .
 func New(cfg *config.Config, router *router.Router) *Server {
 
 	var s Server

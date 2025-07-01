@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewDeleteCMD возвращвет команду удаления.
 func NewDeleteCMD(cfg *clientcfg.Config) *cobra.Command {
 	var uid string
 

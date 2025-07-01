@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewGetCMD возвращвет команду получения расшифровки данных.
 func NewGetCMD(cfg *clientcfg.Config) *cobra.Command {
 	var uid string
 

@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// InitDB = создаёт экзампляр бд.
 func InitDB(path string) (*sql.DB, error) {
 	createTable := `CREATE TABLE IF NOT EXISTS secrets (
 			uid TEXT PRIMARY KEY NOT NULL,
@@ -43,6 +44,7 @@ func InitDB(path string) (*sql.DB, error) {
 	return db, nil
 }
 
+// SaveItem = сохраняет запись.
 func SaveItem(ctx context.Context, db *sql.DB, item *models.Item) error {
 
 	tx, err := db.Begin()
@@ -73,6 +75,7 @@ func SaveItem(ctx context.Context, db *sql.DB, item *models.Item) error {
 	return tx.Commit()
 }
 
+// GetItem = получает запись по uid.
 func GetItem(ctx context.Context, db *sql.DB, uid string) (*models.Item, error) {
 	var item models.Item
 
@@ -88,6 +91,7 @@ func GetItem(ctx context.Context, db *sql.DB, uid string) (*models.Item, error) 
 	return &item, nil
 }
 
+// GetLastItems = получает список данных.
 func GetItems(ctx context.Context, db *sql.DB) ([]*models.Item, error) {
 	items := make([]*models.Item, 0)
 
@@ -118,6 +122,7 @@ func GetItems(ctx context.Context, db *sql.DB) ([]*models.Item, error) {
 	return items, nil
 }
 
+// GetLastItems = получает список данных изменённых после указанной даты.
 func GetLastItems(ctx context.Context, db *sql.DB, lastSync time.Time) ([]*models.Item, error) {
 	items := make([]*models.Item, 0)
 
@@ -148,12 +153,13 @@ func GetLastItems(ctx context.Context, db *sql.DB, lastSync time.Time) ([]*model
 	return items, nil
 }
 
+// SaveTokens - сохраняет токены.
 func SaveTokens(ctx context.Context, db *sql.DB, item *models.AuthResponse) error {
 	_, err := db.ExecContext(ctx, "INSERT INTO tokens (access, refresh) VALUES (?, ?)", item.Access, item.Refresh)
 	return err
 }
 
-// GetTokens - получает последние сохраненные токены
+// GetTokens - получает последние сохраненные токены.
 func GetTokens(ctx context.Context, db *sql.DB) (*models.AuthResponse, error) {
 	var tokens models.AuthResponse
 	err := db.QueryRowContext(ctx,
@@ -231,7 +237,7 @@ func DeleteItem(ctx context.Context, db *sql.DB, uid string) error {
 	return nil
 }
 
-// UpdateItem - обновление данных
+// UpdateItem - обновление данных.
 func UpdateItem(ctx context.Context, db *sql.DB, item *models.Item) error {
 	now := time.Now()
 	result, err := db.ExecContext(ctx, `
@@ -264,6 +270,7 @@ func UpdateItem(ctx context.Context, db *sql.DB, item *models.Item) error {
 	return nil
 }
 
+// UpdateItems - обновление списка данных.
 func UpdateItems(ctx context.Context, db *sql.DB, items []*models.Item) error {
 	tx, err := db.Begin()
 	if err != nil {

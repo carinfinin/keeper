@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// Generate генерирует jwt.
 func Generate(user *models.User, tokenType string, cfg *config.Config) (string, error) {
 
 	var duration time.Duration
@@ -40,11 +41,13 @@ func Generate(user *models.User, tokenType string, cfg *config.Config) (string, 
 	return token.SignedString(cfg.PrivateKey)
 }
 
+// JwtData структура для дальнейшей предачи в контекст.
 type JwtData struct {
 	UserID   float64
 	DeviceID float64
 }
 
+// Decode.
 func Decode(token string, cfg *config.Config) (*JwtData, error) {
 
 	claims := jwt.MapClaims{}

@@ -14,11 +14,13 @@ import (
 	"os"
 )
 
+// Worker структура воркера.
 type Worker struct {
 	config  *clientcfg.Config
 	service *service.KeeperService
 }
 
+// NewWorker конструктор воркера.
 func NewWorker() (*Worker, error) {
 	cfg, err := clientcfg.LoadConfig()
 	if err != nil {
@@ -50,9 +52,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("lchange")
-	fmt.Println(b)
-
 	var lchange models.LastSync
 	err = json.Unmarshal(b, &lchange)
 	if err != nil {
@@ -72,10 +71,8 @@ func main() {
 		fmt.Printf("ошибка отправки PushLastChanges: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Println("serverChanges")
-	fmt.Println(serverChanges)
 
-	//// Применяем серверные изменения
+	// Применяем серверные изменения
 	err = w.service.MergeLastChanges(context.Background(), serverChanges)
 	if err != nil {
 		fmt.Printf("ошибка сохранения MergeLastChanges: %v\n", err)
@@ -83,6 +80,7 @@ func main() {
 	}
 }
 
+// request.
 func (w *Worker) request(cfg *clientcfg.Config, methodHTTP, pathMethod string, body []byte) ([]byte, error) {
 
 	tokens, err := w.service.GetTokens(context.Background())
@@ -134,6 +132,7 @@ func (w *Worker) request(cfg *clientcfg.Config, methodHTTP, pathMethod string, b
 	return io.ReadAll(response.Body)
 }
 
+// PushLastChanges применение даннвх с сервера.
 func (w *Worker) PushLastChanges(ctx context.Context, items []*models.Item) ([]*models.Item, error) {
 	res := make([]*models.Item, 0)
 

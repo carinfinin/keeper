@@ -8,6 +8,7 @@ import (
 	"os"
 )
 
+// NewDownloadCMD возвращвет команду скачивания файла.
 func NewDownloadCMD(cfg *clientcfg.Config) *cobra.Command {
 	var (
 		uid       string

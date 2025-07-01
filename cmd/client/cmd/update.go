@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewUpdateCMD возвращает команду обновления.
 func NewUpdateCMD(cfg *clientcfg.Config) *cobra.Command {
 
 	var uid string

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	cfg "github.com/carinfinin/keeper/internal/config"
 	"github.com/carinfinin/keeper/internal/logger"
@@ -9,12 +10,17 @@ import (
 	"github.com/carinfinin/keeper/internal/service"
 	"github.com/carinfinin/keeper/internal/store/storepg"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
+	defer stop()
 	// config
 	config := cfg.New()
-	fmt.Println(config)
 	// logger
 	err := logger.Configure(config.LogLevel)
 	if err != nil {
@@ -31,7 +37,24 @@ func main() {
 	r.Configure()
 	// server
 	svr := server.New(config, r)
-	if err = svr.Start(); err != nil {
-		logger.Log.Fatal(err)
+	go func() {
+		if err = svr.Start(); err != nil {
+			logger.Log.Error("server failed error: ", err)
+		}
+	}()
+
+	logger.Log.Info("server started")
+
+	<-ctx.Done()
+	shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	if err = svr.Stop(shutdownCtx); err != nil {
+		logger.Log.Error("error stop server: ", err)
 	}
+
+	if err = bd.Close(shutdownCtx); err != nil {
+		logger.Log.Error("error stop store: ", err)
+	}
+	logger.Log.Info("stopping server")
 }
