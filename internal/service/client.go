@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"database/sql"
@@ -10,13 +9,10 @@ import (
 	"github.com/carinfinin/keeper/internal/clientcfg"
 	"github.com/carinfinin/keeper/internal/fingerprint"
 	"github.com/carinfinin/keeper/internal/store/models"
-	"golang.org/x/term"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
-	"syscall"
 	"time"
 
 	"github.com/carinfinin/keeper/internal/crypted"
@@ -222,29 +218,6 @@ func (s *KeeperService) UpdateItem(ctx context.Context, item *models.Item, data 
 	return nil
 }
 
-// promptInput запрашивает у пользователя ввод текста
-func promptInput(prompt string) (string, error) {
-	fmt.Print(prompt)
-	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(input), nil
-}
-
-// promptPassword запрашивает пароль без отображения ввода
-func promptPassword(prompt string) (string, error) {
-	fmt.Print(prompt)
-	// Чтение пароля без отображения символов
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
-	fmt.Println()
-	if err != nil {
-		return "", err
-	}
-	return string(bytePassword), nil
-}
-
 // GetTokens возвращает текущие аутентификационные токены из локальной БД.
 func (s *KeeperService) GetTokens(ctx context.Context) (*models.AuthResponse, error) {
 	return storesqlite.GetTokens(ctx, s.db)
@@ -282,7 +255,7 @@ func (s *KeeperService) Auth(ctx context.Context, login *models.Login) error {
 	}
 
 	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("error status code auth: ", response.Status)
+		return fmt.Errorf("error status code auth: %s", response.Status)
 	}
 
 	b, err := io.ReadAll(response.Body)
@@ -330,7 +303,7 @@ func (s *KeeperService) Register(ctx context.Context, login *models.Login) error
 	}
 
 	if response.StatusCode != http.StatusCreated {
-		return fmt.Errorf("error status code auth: ", response.Status)
+		return fmt.Errorf("error status code auth: %s", response.Status)
 	}
 
 	b, err := io.ReadAll(response.Body)

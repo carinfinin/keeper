@@ -8,7 +8,7 @@ import (
 
 var ErrDouble = errors.New("login already taken")
 
-//go:generate go run github.com/vektra/mockery/v2@v2.52.2 --name=Repository --filename=repositorymock_test.go --inpackage
+//go:generate go run github.com/vektra/mockery/v2@v2.53.3 --name=Repository --filename=repositorymock_test.go --inpackage
 type Repository interface {
 	Login(ctx context.Context, u *models.User) (*models.AuthResponse, error)
 	Register(ctx context.Context, u *models.User) (*models.AuthResponse, error)

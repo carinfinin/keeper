@@ -22,14 +22,24 @@ build_server:
 	@echo "Build app"
 	go build -o server ./cmd/server/main.go
 
+build_worker:
+	@echo "Build keeperworker"
+	go build -o keeperworker ./cmd/cronjob/main.go
+
+setup_worker:
+	@echo "Run setup worker"
+	go run ./cmd/setupworker/main.go ./keeperworker
+
 all:
 	@echo "Start build app"
+	gen_private_key gen_public_key build_server
 
 .PHONY: cover
 cover:
 	go test -short -count=1 -coverprofile=coverage.out ./internal/... ./cmd/...
 	go tool cover -html=coverage.out
 	rm ./coverage.out
+
 migrate:
 	@echo "Start migrate up"
 	migrate -path migrations -database "postgres://user:password@localhost:5432/keeper?sslmode=disable" up

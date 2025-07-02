@@ -18,13 +18,10 @@ import (
 	"path/filepath"
 )
 
-// const key = "password"
-
 // KeyStorage.
 type KeyStorage struct {
 	EncryptedKey string `json:"encrypted_key"`
 	KeyHash      string `json:"key_hash"`
-	// ServerSalt   string `json:"server_salt"`
 }
 
 // getStoragePath.
@@ -42,12 +39,6 @@ func SaveDerivedKey(password, serverSalt string) error {
 
 	// Создаем хеш ключа для проверки
 	keyHash := sha256.Sum256(cryptoKey)
-
-	//// Шифруем ключ паролем (доп. защита)
-	//encrypted, err := encryptWithPassword(cryptoKey, key)
-	//if err != nil {
-	//	return err
-	//}
 
 	storage := KeyStorage{
 		EncryptedKey: base64.StdEncoding.EncodeToString(cryptoKey),
