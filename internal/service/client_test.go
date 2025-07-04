@@ -46,6 +46,13 @@ func TestClientService(t *testing.T) {
 			assert.NoError(t, err)
 
 			assert.Equal(t, item.Data, data)
+
+			err = s.DeleteItem(context.Background(), test.item.UID)
+			assert.NoError(t, err)
+
+			_, err = s.GetDecryptedItem(context.Background(), test.item.UID)
+			assert.Error(t, err)
+
 		})
 	}
 }
